@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "multicamera-handtracking"
+version = "0.1.0"
+description = "Stabilize mediapipe handtracking using several cameras (2 cameras)"
+authors = ["Ivan Khrop <hrop.ivan@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+thread = "^2.0.3"
+mediapipe = "^0.10.14"
+opencv-python = "^4.10.0.84"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
