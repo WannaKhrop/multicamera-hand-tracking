@@ -1,0 +1,10 @@
+# mediapipe models
+models/hand_landmarker.task
+models/pose_landmarker_lite.task
+
+# old files
+src/camera_thread/simple_thread.py
+
+# compiled python and json files
+*.pyc
+*.json

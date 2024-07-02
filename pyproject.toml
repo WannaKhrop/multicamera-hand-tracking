@@ -10,6 +10,7 @@ python = "^3.10"
 thread = "^2.0.3"
 mediapipe = "^0.10.14"
 opencv-python = "^4.10.0.84"
+pyrealsense2 = "^2.55.1.6486"
 
 
 [build-system]

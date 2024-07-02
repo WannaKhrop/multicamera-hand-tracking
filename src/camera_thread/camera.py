@@ -3,21 +3,26 @@ import pyrealsense2 as rs
 import numpy as np
 
 class camera: 
-    def __init__(self):
+    def __init__(self, device_name: str, device_id: int):
         self.pipeline = rs.pipeline()
         self.config = rs.config()
+
+        # internal data
+        self.device_name = device_name
+        self.device_id = device_id
         self.pipeline_started=False
         self.intrinsics_saved=False
 
         # Get device product line for setting a supporting resolution
-        pipeline_wrapper = rs.pipeline_wrapper(self.pipeline)
-        pipeline_profile = self.config.resolve(pipeline_wrapper)
-        device = pipeline_profile.get_device()
+        #pipeline_wrapper = rs.pipeline_wrapper(self.pipeline)
+        #pipeline_profile = self.config.resolve(pipeline_wrapper)
+        #device = pipeline_profile.get_device()
         
 
         align_to = rs.stream.color
         self.align = rs.align(align_to)
 
+        self.config.enable_device(self.device_id)
         self.config.enable_stream(rs.stream.depth, 1280, 720, rs.format.z16, 30)
         self.config.enable_stream(rs.stream.color, 1920, 1080, rs.format.rgb8, 30)
 
@@ -63,8 +68,8 @@ class camera:
         return imgRGB
 
     def get_depth_data_from_pixel(self, px, py):
-        depth_min = 0.11 #meter
-        depth_max = 1.0 #meter
+        #depth_min = 0.11 #meter
+        #depth_max = 1.0 #meter
 
         #depth_point = rs.rs2_project_color_pixel_to_depth_pixel(self.depth_frame.get_data(), self.depth_scale, depth_min, depth_max, self.depth_intrin, self.color_intrin, self.depth_to_color_extrin, self. color_to_depth_extrin, [px, py])
 
@@ -75,8 +80,6 @@ class camera:
             return [dx, dy, dz]
         except:
             return [-1, -1, -1]
-
-        
 
     def __del__(self):
         if self.pipeline_started:
