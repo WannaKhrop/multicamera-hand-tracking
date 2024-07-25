@@ -57,48 +57,38 @@ cap.release()
 cv2.destroyAllWindows()
 """
 
-import pyrealsense2 as rs
 import cv2
 
-from camera_thread.camera import camera
-from hand_recognizer.hand_recognizer import process_image, draw_hand
+from hand_recognizer import hand_recognizer
 
-from mediapipe.tasks.python.components.containers import NormalizedLandmark
+video = cv2.VideoCapture(0)
 
-# Create a context object. This object owns the handles to all connected realsense devices
-context = rs.context()
+ret, frame = video.read()
 
-print("Available devices:")
-for i, device in enumerate(context.devices):
-    camera_name = device.get_info(rs.camera_info.name)
-    camera_id = device.get_info(rs.camera_info.serial_number)
-    print(f"Device {i}: {device.get_info(rs.camera_info.name)}, Serial Number: {device.get_info(rs.camera_info.serial_number)}")
+video.release()
 
-my_cam = camera(camera_name, camera_id)
+results = hand_recognizer.process_image(hand_recognizer.create_landmarker(), frame)
 
-input('Input to take a picture:')
+"""
+# get hand world landmarks
+world_landmarks = hand_recognizer.to_numpy_ndarray(results.hand_world_landmarks[0])
 
-color_image = my_cam.take_picture_and_return_color()
+# get normalized landmarks
+landmarks = hand_recognizer.to_numpy_ndarray(results_of_mediapipe.hand_landmarks[0])
 
-# Display the image
-cv2.imwrite('fingers.jpg', color_image)
+# get the closest point to the camera according to z-axis
+closest_point_idx = hand_recognizer.HandLandmark(np.argmin(landmarks[:, 2]))
+closest_point = hand_recognizer.extract_camera_coordinates(results_of_mediapipe.hand_landmark[0][closest_point_idx],
+                                                          camera)
 
-results = process_image(color_image)
+# make the closest point a new center of coordinates
+hand_with_new_origin = hand_recognizer.change_origin(closest_point_idx, world_landmarks)
 
-for hand_landmarks in results.hand_landmarks:
-  
-    camera_landmarks = []
+# add the real world coordinates to the camera coordinates
+# save result for hand
+hands[name] = closest_point + hand_with_new_origin
+"""
 
-    for landmark in hand_landmarks:
-        x_pixel = landmark.x * 1920
-        y_pixel = landmark.y * 1080
+hand_recognizer.draw_hand(results.hand_world_landmarks[0])
 
-        x, y, z = tuple(my_cam.get_depth_data_from_pixel(x_pixel, y_pixel))
-        camera_landmarks.append(NormalizedLandmark(x=x, y=y, z=z))
-
-    mp_landmarks = []
-
-    for landmark in hand_landmarks:
-        mp_landmarks.append(landmark)
-
-    draw_hand(camera_landmarks, azimuth=6)
+print(results.hand_world_landmarks[0])

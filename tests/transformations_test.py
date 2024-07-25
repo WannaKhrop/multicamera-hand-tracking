@@ -1,16 +1,15 @@
 import sys
 import os
-
-# Add 'src' directory to Python path
-src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src/utils'))
-sys.path.append(src_path)
-    
-
-from utils import umeyama, linear_transfomation
 import numpy as np
 
-def main():
+# Add 'src' directory to Python path
+src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src/utils/"))
+sys.path.append(src_path)
 
+from utils import umeyama, linear_transfomation
+
+
+def test_dummy():
     # rotation + translation
     rot, trlt = np.random.normal(size=(3, 3)), np.random.normal(size=(3, 1))
 
@@ -33,17 +32,16 @@ def main():
     mse_result = linear_transfomation(X_data, Y_data)
 
     # print all the results
-    print('Umeyama:')
+    print("Umeyama:")
     print(umeyama_result)
     print()
 
-    print('MSE:')
+    print("MSE:")
     print(mse_result)
     print()
 
-    print('Real transformation:')
+    print("Real transformation:")
     print(real_matrix)
     print()
 
-if __name__ == '__main__':
-    main()
+    assert True
