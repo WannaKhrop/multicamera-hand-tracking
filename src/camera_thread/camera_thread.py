@@ -96,7 +96,7 @@ class CameraThreadCV(Thread):
             ret, frame = video.read()
             time_stamp = int(time() * 1000)
 
-            self.capture_target.append((time_stamp, frame))
+            self.capture_target.append((time_stamp, self.camera_id, frame))
 
             # for testing purposes
             if self.stream:
