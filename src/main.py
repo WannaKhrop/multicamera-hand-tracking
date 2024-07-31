@@ -57,38 +57,49 @@ cap.release()
 cv2.destroyAllWindows()
 """
 
-import cv2
+from camera_thread.camera import camera
 
 from hand_recognizer import hand_recognizer
+from mediapipe.tasks.python.components.containers import Landmark
 
-video = cv2.VideoCapture(0)
+import numpy as np
 
-ret, frame = video.read()
+# Create a context object. This object owns the handles to all connected realsense devices
+my_cam = camera(device_name="Intel RealSense D435", device_id="805312070126")
 
-video.release()
+txt = input("To capture: ")
 
-results = hand_recognizer.process_image(hand_recognizer.create_landmarker(), frame)
+frame = my_cam.take_picture_and_return_color()
 
-"""
+results = hand_recognizer.process_image(
+    hand_recognizer.create_landmarker("../models/hand_landmarker.task"), frame
+)
+print(results)
+
 # get hand world landmarks
 world_landmarks = hand_recognizer.to_numpy_ndarray(results.hand_world_landmarks[0])
 
 # get normalized landmarks
-landmarks = hand_recognizer.to_numpy_ndarray(results_of_mediapipe.hand_landmarks[0])
+landmarks = hand_recognizer.to_numpy_ndarray(results.hand_landmarks[0])
 
 # get the closest point to the camera according to z-axis
 closest_point_idx = hand_recognizer.HandLandmark(np.argmin(landmarks[:, 2]))
-closest_point = hand_recognizer.extract_camera_coordinates(results_of_mediapipe.hand_landmark[0][closest_point_idx],
-                                                          camera)
+closest_point = hand_recognizer.extract_camera_coordinates(
+    results.hand_landmark[0][closest_point_idx], my_cam
+)
 
 # make the closest point a new center of coordinates
 hand_with_new_origin = hand_recognizer.change_origin(closest_point_idx, world_landmarks)
+print(hand_with_new_origin)
 
 # add the real world coordinates to the camera coordinates
 # save result for hand
-hands[name] = closest_point + hand_with_new_origin
-"""
+hand = closest_point + hand_with_new_origin
 
-hand_recognizer.draw_hand(results.hand_world_landmarks[0])
+all_landmarks = []
+for point in hand:
+    all_landmarks.append(Landmark(point[0], point[1], point[2]))
+
+hand_recognizer.draw_hand(all_landmarks)
 
 print(results.hand_world_landmarks[0])

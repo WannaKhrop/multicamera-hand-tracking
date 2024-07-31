@@ -4,17 +4,10 @@ from threading import Event
 from time import sleep
 
 # Add 'src' directory to Python path
-src_path = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "src/camera_thread/")
-)
+src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src/"))
 sys.path.append(src_path)
 
-src_path = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "src/hand_recognizer/")
-)
-sys.path.append(src_path)
-
-from camera_thread import CameraThreadCV
+from camera_thread.cv_thread import CameraThreadCV
 
 
 def test_threads_cv():
@@ -27,9 +20,7 @@ def test_threads_cv():
     for camera in arr:
         # threads
         results[camera] = list()
-        threads[camera] = CameraThreadCV(
-            camera, close_threads, results[camera], "models\hand_landmarker.task"
-        )
+        threads[camera] = CameraThreadCV(camera, close_threads, results[camera])
         threads[camera].start()
 
     # sleep for a while
