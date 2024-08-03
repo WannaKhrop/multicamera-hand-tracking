@@ -108,7 +108,7 @@ class camera:
                 active_profile.get_device().first_depth_sensor().get_depth_scale()
             )
             # take some pictures till quality is good
-            for i in range(1, 100):
+            for _ in range(1, 100):
                 self.pipeline.wait_for_frames()
                 self.pipeline_started = True
 
@@ -132,7 +132,30 @@ class camera:
         imgRGB = np.asanyarray(self.color_frame.get_data())
         imgRGB = cv2.cvtColor(imgRGB, cv2.COLOR_BGR2RGB)
 
+        print(type(self.color_intrin))
+
         return imgRGB
+
+    def get_last_depth_frame(self) -> np.ndarray:
+        """
+        Get the latest depth frame.
+
+        Returns
+        -------
+        np.ndarray
+        """
+        depth_frame = np.asanyarray(self.depth_frame.get_data()).copy()
+        return depth_frame
+
+    def get_last_intrinsics(self):  # TODO
+        """
+        Get the latest intrinsics parameters.
+
+        Returns
+        -------
+        !!! TODO !!!
+        """
+        return np.asanyarray(self.color_intrin.get_data()).copy()
 
     def get_depth_data_from_pixel(self, px, py):
         # depth_min = 0.11 #meter
@@ -156,3 +179,17 @@ class camera:
         """
         if self.pipeline_started:
             self.pipeline.stop()
+
+    @classmethod
+    def get_camera_coordinates(
+        cls, x_pixel: int, y_pixel: int, depth_frame: np.ndarray, intrinsics
+    ):
+        # need to check the coordinates of x and y
+        try:
+            depth = depth_frame[x_pixel, y_pixel]
+            dx, dy, dz = rs.rs2_deproject_pixel_to_point(
+                intrinsics, [x_pixel, y_pixel], depth
+            )
+            return [dx, dy, dz]
+        except Exception():
+            return [-1, -1, -1]

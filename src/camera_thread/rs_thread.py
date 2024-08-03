@@ -83,13 +83,9 @@ class CameraThreadRS(Thread):
         """
         while True:
             # get data from picture
-            (
-                color_frame,
-                depth_frame,
-                intrinsics,
-            ) = self.camera.take_picture_and_return_color()
-            # depth_frame = self.camera.get_last_depth_frame()
-            # intrinsics = self.camera.get_last_color_intrinsics()
+            color_frame = self.camera.take_picture_and_return_color()
+            depth_frame = self.camera.get_last_depth_frame()
+            intrinsics = self.camera.get_last_intrinsics()
 
             time_stamp = int(time() * 1000)
             # RealSense Camera Thread must process image immediatelly because each time the camera takes a frame
