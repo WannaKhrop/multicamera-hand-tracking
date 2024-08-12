@@ -7,10 +7,14 @@ Date: 23.07.2024
 # import basic libraries
 from threading import Thread, Event
 from time import time
+import numpy as np
 
 # realsense camera
 from camera_thread.camera import camera
 import pyrealsense2 as rs
+
+# deque collection for frames
+from collections import deque
 
 
 class CameraThreadRS(Thread):
@@ -25,19 +29,19 @@ class CameraThreadRS(Thread):
         ID of a camera that will take pictures for this thread
     close_event: Event
         Event to stop the thread
-    target: list[tuple[int, np.array !!! TODO !!!]
-        A place to save the result (timestamp, frame, dict(hand, coordinates))
+    target: deque[tuple[int, int, np.array, np.array, rs.pyrealsense2.intrinsics]]
+        A place to save the result (timestamp, cameara_id, color_frame, depth_frame, intrinsics)
     """
 
     def __init__(
         self,
         camera_name: str,
-        camera_id: int,
+        camera_id: str,
         close_event: Event,
-        target: list[tuple],
+        target: deque[tuple[int, int, np.array, np.array, rs.pyrealsense2.intrinsics]],
     ):
         """
-        Initialize a new instance of CV-Thread for a camera.
+        Initialize a new instance of RS-Thread for a camera.
 
         Parameters
         ----------
@@ -86,25 +90,28 @@ class CameraThreadRS(Thread):
             color_frame = self.camera.take_picture_and_return_color()
             depth_frame = self.camera.get_last_depth_frame()
             intrinsics = self.camera.get_last_intrinsics()
-
+            # get time stamp
             time_stamp = int(time() * 1000)
-            # RealSense Camera Thread must process image immediatelly because each time the camera takes a frame
-            # it also captures depth information. This depth information will be lost as soon as a new frame is captures.
-            # So, we have to process image inside of this thread.
 
             # save the results of this frame
             self.capture_target.append(
-                (time_stamp, color_frame, depth_frame, intrinsics)
+                (
+                    time_stamp,
+                    self.camera.device_id,
+                    color_frame,
+                    depth_frame,
+                    intrinsics,
+                )
             )
 
+            # if threads are stopped
             if self.close_event.is_set():
                 break
 
     @classmethod
-    def returnCameraIndexes(cls) -> list[tuple[str, int]]:
+    def returnCameraIndexes(cls) -> list[tuple[str, str]]:
         """
         Identify the list of available cameras.
-        Up to 10 cameras.
 
         Returns
         -------

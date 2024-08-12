@@ -12,7 +12,8 @@ from camera_thread.rs_thread import CameraThreadRS
 
 def test_threads_rs():
     arr = CameraThreadRS.returnCameraIndexes()
-    print("Cameras", arr)
+
+    assert len(arr) > 0, "No cameras are available. Test can not be passed."
 
     close_threads = Event()
     results, threads = dict(), dict()
@@ -26,7 +27,7 @@ def test_threads_rs():
         threads[camera_id].start()
 
     # sleep for a while
-    sleep(20)
+    sleep(10)
     close_threads.set()
 
     # check results

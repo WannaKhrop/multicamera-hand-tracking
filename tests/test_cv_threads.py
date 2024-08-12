@@ -12,7 +12,8 @@ from camera_thread.cv_thread import CameraThreadCV
 
 def test_threads_cv():
     arr = CameraThreadCV.returnCameraIndexes()
-    print("Cameras", arr)
+
+    assert len(arr) > 0, "No cameras are available. Test can not be passed."
 
     close_threads = Event()
     results, threads = dict(), dict()

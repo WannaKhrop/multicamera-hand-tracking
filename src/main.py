@@ -56,50 +56,145 @@ with mp_holistic.Holistic(
 cap.release()
 cv2.destroyAllWindows()
 """
-
+# import threads
 from camera_thread.camera import camera
+from camera_thread.rs_thread import CameraThreadRS
 
-from hand_recognizer import hand_recognizer
-from mediapipe.tasks.python.components.containers import Landmark
+# in case of saving images
+from PIL import Image
+from collections import deque
+from time import time
 
-import numpy as np
+# event to stop threads
+from threading import Event
+
+# functions to process images
+from hand_recognition.hand_recognizer import convert_to_camera_coordinates, hand_to_df
+from utils.utils import merge_sorted_lists
+from utils.geometry import assign_visability
+from utils.coordinate_transformer import CoordinateTransformer
+from utils.fusion import DataMerger
+from utils.constants import TIME_DELTA
 
 # Create a context object. This object owns the handles to all connected realsense devices
 my_cam = camera(device_name="Intel RealSense D435", device_id="805312070126")
 
 txt = input("To capture: ")
 
+# frame
 frame = my_cam.take_picture_and_return_color()
+depth_frame = my_cam.get_last_depth_frame()
+intrinsics = my_cam.get_last_intrinsics()
 
-results = hand_recognizer.process_image(
-    hand_recognizer.create_landmarker("../models/hand_landmarker.task"), frame
-)
-print(results)
+# save image
+image = Image.fromarray(frame)
+image.save("output_image.png")
 
-# get hand world landmarks
-world_landmarks = hand_recognizer.to_numpy_ndarray(results.hand_world_landmarks[0])
+# define transformer
+transformer = CoordinateTransformer()
 
-# get normalized landmarks
-landmarks = hand_recognizer.to_numpy_ndarray(results.hand_landmarks[0])
+# get landmarks
+detected_hands = convert_to_camera_coordinates(frame, depth_frame, intrinsics)
+print(detected_hands)
 
-# get the closest point to the camera according to z-axis
-closest_point_idx = hand_recognizer.HandLandmark(np.argmin(landmarks[:, 2]))
-closest_point = hand_recognizer.extract_camera_coordinates(
-    results.hand_landmark[0][closest_point_idx], my_cam
-)
+# assign convert to world coordinates and assign visibility to each frame
+for hand in detected_hands:
+    # world coords
+    world_coords = transformer.camera_to_world(
+        camera_id="805312070126", points=detected_hands[hand]
+    )
+    # convert to pd.DataFrame
+    detected_hands[hand] = hand_to_df(detected_hands[hand])
+    # assign visibility
+    assign_visability(df_landmarks=detected_hands[hand])
+    # save results
+    world_coords["visibility"] = detected_hands[hand].loc[
+        world_coords.index, "visibility"
+    ]
+    detected_hands[hand] = world_coords
 
-# make the closest point a new center of coordinates
-hand_with_new_origin = hand_recognizer.change_origin(closest_point_idx, world_landmarks)
-print(hand_with_new_origin)
 
-# add the real world coordinates to the camera coordinates
-# save result for hand
-hand = closest_point + hand_with_new_origin
+def main():
+    # read available cameras
+    available_cameras = CameraThreadRS.returnCameraIndexes()
+    # check cameras
+    assert (
+        len(available_cameras) > 0
+    ), "No cameras are available. Test can not be passed."
 
-all_landmarks = []
-for point in hand:
-    all_landmarks.append(Landmark(point[0], point[1], point[2]))
+    # define events and data
+    close_threads = Event()
+    results = dict()
 
-hand_recognizer.draw_hand(all_landmarks)
+    for camera_name, camera_id in available_cameras:
+        # threads
+        results[camera_id] = deque()
+        thread = CameraThreadRS(
+            camera_name, camera_id, close_threads, results[camera_id]
+        )
+        thread.start()
 
-print(results.hand_world_landmarks[0])
+    # !!! TODO !!!
+    # add event to start threads
+    print("Threads started")
+
+    # wait till the end
+    while True:
+        stop_threds = input("Input 'stop' to interrupt all thread: ")
+        if stop_threds == "stop":
+            close_threads.set()
+            break
+
+    # gather results from all threads and store them in one list
+    all_frames = list()
+    start_time = time()
+    for camera_id in results:
+        all_frames = merge_sorted_lists(all_frames, results[camera_id])
+    print(f"Merging all results = {round(time() - start_time, 3)} sec.")
+
+    # define transformer
+    transformer = CoordinateTransformer()
+
+    # process each frame and save those ones that have detected hands
+    detected_results = []
+    start_time = time()
+    for timestamp, camera_id, color_frame, depth_frame, intrinsics in all_frames:
+        # process image and get information
+        detected_hands = convert_to_camera_coordinates(
+            color_frame, depth_frame, intrinsics
+        )
+
+        # check if it's empty then MediaPipe has not found hand on this frame
+        if len(detected_hands) == 0:
+            continue
+
+        # assign convert to world coordinates and assign visibility to each frame
+        for hand in detected_hands:
+            # world coords
+            world_coords = transformer.camera_to_world(
+                camera_id=camera_id, points=detected_hands[hand]
+            )
+            # convert to pd.DataFrame
+            detected_hands[hand] = hand_to_df(detected_hands[hand])
+            # assign visibility
+            assign_visability(df_landmarks=detected_hands[hand])
+            # save results
+            world_coords["visibility"] = detected_hands[hand].loc[
+                world_coords.index, "visibility"
+            ]
+            detected_hands[hand] = world_coords
+
+        # save detected results
+        detected_results.append((timestamp, camera_id, detected_hands))
+    print(f"Convertion of all results = {round(time() - start_time, 3)} sec.")
+
+    # process close timestamps in time
+    data_merger = DataMerger(time_delta=TIME_DELTA)
+    start_time = time()
+    # process each available frame
+    for frame in detected_results:
+        data_merger.add_time_frame(*frame)
+    print(f"Fusion = {round(time() - start_time, 3)} sec.")
+
+    # get results
+    # final_result = data_merger.fusion_results

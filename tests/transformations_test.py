@@ -6,7 +6,7 @@ import numpy as np
 src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src/utils/"))
 sys.path.append(src_path)
 
-from utils import umeyama, linear_transfomation
+from utils.utils import umeyama, linear_transfomation
 
 
 def test_dummy():

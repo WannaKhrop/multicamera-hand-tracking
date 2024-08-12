@@ -8,3 +8,8 @@ src/camera_thread/simple_thread.py
 # compiled python and json files
 *.pyc
 *.json
+
+# pictures and files
+*.png
+*.jpeg
+*.pdf

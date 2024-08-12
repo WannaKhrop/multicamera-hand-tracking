@@ -10,7 +10,9 @@ import pandas as pd
 from typing import Callable
 from shapely.geometry import Polygon
 
-from hand_recognizer.HandLandmarks import (
+from utils.utils import softmax
+
+from hand_recognition.HandLandmarks import (
     finger_connections,
     palm_landmarks,
     fingers_landmarks,
@@ -126,25 +128,6 @@ def project_point_to_plane(plane: np.ndarray, point: np.array) -> np.ndarray:
     d = np.dot(point_ext, plane) / np.linalg.norm(normal_vector)
 
     return point + d * normal_vector
-
-
-def hand_to_df(landmarks: np.ndarray):
-    """
-    Convert matrix of points into a pandas.DataFrame.
-    Resulting DataFrame contains the following columns: index, x, y, z
-
-    Parameters
-    ----------
-    landmarks: np.ndarray
-        Landmarks to be converted
-
-    Returns
-    -------
-    pd.DataFrame
-    """
-    columns = ["x", " y", "z"]
-    df = pd.DataFrame(landmarks, columns=columns)
-    return df
 
 
 def cosine(v1: np.ndarray, v2: np.ndarray) -> float:
@@ -328,4 +311,46 @@ def assign_visability(df_landmarks: pd.DataFrame):
 
         visibility_dict[idx] = visibility
 
+    # store results
     df_landmarks["visibility"] = df_landmarks.index.map(visibility_dict)
+
+    # sort by index (HandLandmark id)
+    df_landmarks = df_landmarks.sort_index()
+
+
+def landmarks_fusion(
+    world_coordinates: list[pd.DataFrame], softmax_const: float = 20.0
+) -> pd.DataFrame:
+    """
+    Combine information from different cameras and get the resulting set of landmarks.
+
+    Parameters
+    ----------
+    world_coordinates: list[pd.DataFrame]
+        World coordinates with assignment of visibility for each landmark.
+        Each DataFrame contains 21 row with columns = [x, y, z, visibility]
+    softmax_const: float = 20.0
+        Constant that is used for fusion to highlight large visibility.
+
+    Returns
+    -------
+    pd.DataFrame
+        The resulting set of landmarks.
+    """
+    # define name of column
+    x, y, z, vis = "x", "y", "z", "visibility"
+
+    # get all the visibilities and matrixes
+    visibilities = np.hstack(
+        [frame[vis].values.reshape(-1, 1) for frame in world_coordinates]
+    )
+    matrixes = np.array([frame[[x, y, z]].values for frame in world_coordinates])
+
+    # apply softmax and split results
+    weights = softmax(data=visibilities, temperature=softmax_const)
+    weights = np.array(np.hsplit(weights, weights.shape[1]))
+
+    # final result
+    result = np.sum(matrixes * weights, axis=0)
+
+    return pd.DataFrame(data=result, columns=[x, y, z])

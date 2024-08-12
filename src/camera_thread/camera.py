@@ -2,11 +2,15 @@
 Module contains implementation of RealSense Camera class.
 
 Author: Mikula Fabian
+Extention: Ivan Khrop
+Date: 03.08.2024
 """
 
 import cv2
 import pyrealsense2 as rs
 import numpy as np
+
+from utils.constants import PATH_TO_TRANSFORMATION, NUMPY_FILE_EXT, SCALE_FACTOR
 
 
 class camera:
@@ -132,8 +136,6 @@ class camera:
         imgRGB = np.asanyarray(self.color_frame.get_data())
         imgRGB = cv2.cvtColor(imgRGB, cv2.COLOR_BGR2RGB)
 
-        print(type(self.color_intrin))
-
         return imgRGB
 
     def get_last_depth_frame(self) -> np.ndarray:
@@ -147,15 +149,15 @@ class camera:
         depth_frame = np.asanyarray(self.depth_frame.get_data()).copy()
         return depth_frame
 
-    def get_last_intrinsics(self):  # TODO
+    def get_last_intrinsics(self) -> rs.pyrealsense2.intrinsics:
         """
         Get the latest intrinsics parameters.
 
         Returns
         -------
-        !!! TODO !!!
+        rs.pyrealsense2.intrinsics
         """
-        return np.asanyarray(self.color_intrin.get_data()).copy()
+        return self.color_intrin
 
     def get_depth_data_from_pixel(self, px, py):
         # depth_min = 0.11 #meter
@@ -170,7 +172,7 @@ class camera:
                 self.color_intrin, [px, py], depth
             )
             return [dx, dy, dz]
-        except Exception():
+        except Exception:
             return [-1, -1, -1]
 
     def __del__(self):
@@ -182,14 +184,52 @@ class camera:
 
     @classmethod
     def get_camera_coordinates(
-        cls, x_pixel: int, y_pixel: int, depth_frame: np.ndarray, intrinsics
+        cls,
+        x_pixel: int,
+        y_pixel: int,
+        depth_frame: np.ndarray,
+        intrinsics: rs.pyrealsense2.intrinsics,
     ):
         # need to check the coordinates of x and y
         try:
-            depth = depth_frame[x_pixel, y_pixel]
+            depth = depth_frame[y_pixel, x_pixel] / SCALE_FACTOR
             dx, dy, dz = rs.rs2_deproject_pixel_to_point(
                 intrinsics, [x_pixel, y_pixel], depth
             )
             return [dx, dy, dz]
-        except Exception():
-            return [-1, -1, -1]
+        except Exception:
+            return [-10, -10, -10]
+
+    @classmethod
+    def get_transformation_matrix(cls, camera_id: int) -> np.ndarray:
+        """
+        Read transformation matrix for camera.
+
+        Parameters
+        ----------
+        camera_id: int
+            Camera ID that transformation matrix must be read for.
+
+        Returns
+        -------
+        np.ndarray
+            Tranformation matrix from camera coordinates to world coordinates [R|t].
+        """
+        # read file
+        file_path = PATH_TO_TRANSFORMATION + str(camera_id) + NUMPY_FILE_EXT
+
+        try:
+            matrix = np.load(file=file_path)
+            return matrix
+        except FileNotFoundError as error:
+            print(f"File not found: {error}")
+        except ValueError:
+            print(
+                f"File at {file_path} is not a valid .npy file or contains unsupported dtype."
+            )
+        except OSError as e:
+            print(f"OS error while reading the file: {e}")
+        except EOFError:
+            print(f"Unexpected end of file: {file_path}")
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")

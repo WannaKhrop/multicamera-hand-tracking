@@ -5,33 +5,29 @@ Author: Ivan Khrop
 Date: 21.07.2024
 """
 import numpy as np
+import pyrealsense2 as rs
+from collections import deque
 
 
 def merge_sorted_lists(
-    list1: list[tuple[int, np.array]],
-    list2: list[tuple[int, np.array]],
-    source1: int,
-    source2: int,
-) -> list[tuple[int, int, np.array]]:
+    list1: deque[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]],
+    list2: deque[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]],
+) -> list[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]]:
     """
     Merge two sorted lists according to timestamps in one sequence
 
     Parameters
     ----------
-    list1: list[tuple[int, np.array]]
-        First list to be merged. Each element is (timestamp, frame)
-    list2: list[tuple[int, np.array]]
-        Second list to be merged. Each element is (timestamp, frame)
-    source1: int
-        Camera number which captured list1
-    source1: int
-        Camera number which captured list2
+    list1: deque[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]]
+        First list to be merged. Each element is (timestamp, camera_id, frame, depth_frame, intrinsics)
+    list2: deque[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]]
+        Second list to be merged. Each element is (timestamp, camera_id, frame, depth_frame, intrinsics)
 
     Returns
     -------
-    merged_list: list[tuple[int, int, np.array]]
+    merged_list: list[tuple[int, np.array, np.array, rs.pyrealsense2.intrinsics]]
         Resulting list with elements sorted in ascending order accoring to timestamps.
-        Each element is (timestamp, source, frame )
+        Each element is (timestamp, camera_id, frame, depth_frame, intrinsics)
     """
 
     i: int = 0  # type: ignore
@@ -41,20 +37,20 @@ def merge_sorted_lists(
     # Loop until one of the lists is exhausted
     while i < len(list1) and j < len(list2):
         if list1[i][0] < list2[j][0]:
-            merged_list.append((list1[i][0], source1, list[i][1]))
+            merged_list.append(list1[i])
             i += 1
         else:
-            merged_list.append((list2[j][0], source2, list[j][1]))
+            merged_list.append(list2[j])
             j += 1
 
     # Append remaining elements from list1 if any
     while i < len(list1):
-        merged_list.append((list1[i][0], source1, list[i][1]))
+        merged_list.append(list1[i])
         i += 1
 
     # Append remaining elements from list2 if any
     while j < len(list2):
-        merged_list.append((list2[j][0], source2, list[j][1]))
+        merged_list.append(list2[j])
         j += 1
 
     return merged_list
@@ -152,3 +148,35 @@ def linear_transfomation(X_data: np.ndarray, Y_data: np.ndarray) -> np.ndarray:
     matrix[:d] = M
 
     return matrix
+
+
+def softmax(data: np.ndarray, temperature: float = 1.0) -> np.ndarray:
+    """
+    Apply [Softmax](https://en.wikipedia.org/wiki/Softmax_function) with temperature for each row of data.
+
+    Parameters
+    ----------
+    data: np.ndarray
+        Matrix where softmax will be applied for each row.
+    temperature: float = 1.0
+        Temperature that is used for scaling.
+
+    Returns
+    -------
+    np.ndarray
+        Result after softmax.
+    """
+    # some preprocssing for stabilization
+    max_vals = np.max(data, axis=1, keepdims=True)
+    shifted_matrix = temperature * (data - max_vals)
+
+    # Exponentiate the shifted values
+    exp_vals = np.exp(shifted_matrix)
+
+    # Sum of exponentiated values for each row
+    sum_exp_vals = np.sum(exp_vals, axis=1, keepdims=True)
+
+    # Divide exponentiated values by the sum of exponentiated values for each row
+    softmax_matrix = exp_vals / sum_exp_vals
+
+    return softmax_matrix

@@ -6,15 +6,13 @@ Date: 31.07.2024
 """
 
 import mediapipe as mp
+from utils.constants import PATH_TO_MODEL
 
 # define types
 BaseOptions = mp.tasks.BaseOptions
 HandLandmarker = mp.tasks.vision.HandLandmarker
 HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
 VisionRunningMode = mp.tasks.vision.RunningMode
-
-# path to model
-PATH_TO_MODEL = "../models/hand_landmarker.task"
 
 
 class Landmarker:
