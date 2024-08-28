@@ -53,6 +53,11 @@ finger_connections = [
     (HandLandmark.PINKY_MCP.value, HandLandmark.PINKY_PIP.value),
     (HandLandmark.PINKY_PIP.value, HandLandmark.PINKY_DIP.value),
     (HandLandmark.PINKY_DIP.value, HandLandmark.PINKY_TIP.value),
+    (HandLandmark.WRIST.value, HandLandmark.INDEX_FINGER_MCP.value),
+    (HandLandmark.WRIST.value, HandLandmark.MIDDLE_FINGER_MCP.value),
+    (HandLandmark.WRIST.value, HandLandmark.RING_FINGER_MCP.value),
+    (HandLandmark.WRIST.value, HandLandmark.INDEX_FINGER_MCP.value),
+    (HandLandmark.WRIST.value, HandLandmark.PINKY_MCP.value),
 ]
 
 # this list contains indexes that define a palm

@@ -1,81 +1,28 @@
-"""
-import cv2
-import mediapipe as mp
-
-mp_holistic = mp.solutions.holistic
-mp_drawing = mp.solutions.drawing_utils
-
-# For webcam input:
-cap = cv2.VideoCapture(0)
-with mp_holistic.Holistic(
-    static_image_mode=False,
-    model_complexity=2,
-    enable_segmentation=False,
-    refine_face_landmarks=True) as holistic:
-  while cap.isOpened():
-    success, image = cap.read()
-    if not success:
-      print("Ignoring empty camera frame.")
-      # If loading a video, use 'break' instead of 'continue'.
-      continue
-
-    # To improve performance, optionally mark the image as not writeable to
-    # pass by reference.
-    image.flags.writeable = False
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    results = holistic.process(image)
-
-    # Draw landmark annotation on the image.
-    image.flags.writeable = True
-    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-    mp_drawing.draw_landmarks(
-        image, results.face_landmarks, mp_holistic.FACEMESH_TESSELATION,
-        mp_drawing.DrawingSpec(color=(80,110,10), thickness=1, circle_radius=1),
-        mp_drawing.DrawingSpec(color=(80,256,121), thickness=1, circle_radius=1)
-    )
-    mp_drawing.draw_landmarks(
-        image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS,
-        mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=4),
-        mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2)
-    )
-    mp_drawing.draw_landmarks(
-        image, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS,
-        mp_drawing.DrawingSpec(color=(121,22,76), thickness=2, circle_radius=4),
-        mp_drawing.DrawingSpec(color=(121,44,250), thickness=2, circle_radius=2)
-    )
-    mp_drawing.draw_landmarks(
-        image, results.right_hand_landmarks, mp_holistic.HAND_CONNECTIONS,
-        mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=4),
-        mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2)
-    )
-    
-    # Display the image.
-    cv2.imshow('Mediapipe Holistic', image)
-    if cv2.waitKey(5) & 0xFF == 27:
-      break
-cap.release()
-cv2.destroyAllWindows()
-"""
 # import threads
-from camera_thread.camera import camera
 from camera_thread.rs_thread import CameraThreadRS
 
 # in case of saving images
-from PIL import Image
 from collections import deque
 from time import time
 
 # event to stop threads
 from threading import Event
+import warnings
 
 # functions to process images
-from hand_recognition.hand_recognizer import convert_to_camera_coordinates, hand_to_df
+from hand_recognition.hand_recognizer import (
+    convert_to_camera_coordinates,
+    hand_to_df,
+    process_image,
+    draw_hand_animated,
+)
 from utils.utils import merge_sorted_lists
 from utils.geometry import assign_visability
 from utils.coordinate_transformer import CoordinateTransformer
 from utils.fusion import DataMerger
 from utils.constants import TIME_DELTA
 
+"""
 # Create a context object. This object owns the handles to all connected realsense devices
 my_cam = camera(device_name="Intel RealSense D435", device_id="805312070126")
 
@@ -85,17 +32,21 @@ txt = input("To capture: ")
 frame = my_cam.take_picture_and_return_color()
 depth_frame = my_cam.get_last_depth_frame()
 intrinsics = my_cam.get_last_intrinsics()
-
-# save image
-image = Image.fromarray(frame)
-image.save("output_image.png")
+my_cam.stop()
 
 # define transformer
 transformer = CoordinateTransformer()
 
 # get landmarks
-detected_hands = convert_to_camera_coordinates(frame, depth_frame, intrinsics)
-print(detected_hands)
+mp_results = process_image(frame, holistic=False)
+draw_landmarks_on_image(frame, mp_results)
+
+# save image
+image = Image.fromarray(frame)
+image.save("output_image.png")
+
+# convert to camera coords
+detected_hands = convert_to_camera_coordinates(mp_results, depth_frame, intrinsics)
 
 # assign convert to world coordinates and assign visibility to each frame
 for hand in detected_hands:
@@ -103,15 +54,22 @@ for hand in detected_hands:
     world_coords = transformer.camera_to_world(
         camera_id="805312070126", points=detected_hands[hand]
     )
+    world_coords = hand_to_df(world_coords)
+
     # convert to pd.DataFrame
     detected_hands[hand] = hand_to_df(detected_hands[hand])
+
     # assign visibility
     assign_visability(df_landmarks=detected_hands[hand])
+    
     # save results
     world_coords["visibility"] = detected_hands[hand].loc[
         world_coords.index, "visibility"
     ]
     detected_hands[hand] = world_coords
+
+print(detected_hands)
+"""
 
 
 def main():
@@ -125,6 +83,7 @@ def main():
     # define events and data
     close_threads = Event()
     results = dict()
+    threads: dict[str, CameraThreadRS] = dict()
 
     for camera_name, camera_id in available_cameras:
         # threads
@@ -132,6 +91,8 @@ def main():
         thread = CameraThreadRS(
             camera_name, camera_id, close_threads, results[camera_id]
         )
+
+        threads[camera_id] = thread
         thread.start()
 
     # !!! TODO !!!
@@ -156,12 +117,15 @@ def main():
     transformer = CoordinateTransformer()
 
     # process each frame and save those ones that have detected hands
-    detected_results = []
+    detected_results = list()
     start_time = time()
     for timestamp, camera_id, color_frame, depth_frame, intrinsics in all_frames:
+        # process image
+        mp_results = process_image(color_frame, holistic=False)
+
         # process image and get information
         detected_hands = convert_to_camera_coordinates(
-            color_frame, depth_frame, intrinsics
+            mp_results, depth_frame, intrinsics
         )
 
         # check if it's empty then MediaPipe has not found hand on this frame
@@ -174,10 +138,14 @@ def main():
             world_coords = transformer.camera_to_world(
                 camera_id=camera_id, points=detected_hands[hand]
             )
+            world_coords = hand_to_df(world_coords)
+
             # convert to pd.DataFrame
             detected_hands[hand] = hand_to_df(detected_hands[hand])
+
             # assign visibility
             assign_visability(df_landmarks=detected_hands[hand])
+
             # save results
             world_coords["visibility"] = detected_hands[hand].loc[
                 world_coords.index, "visibility"
@@ -197,4 +165,18 @@ def main():
     print(f"Fusion = {round(time() - start_time, 3)} sec.")
 
     # get results
-    # final_result = data_merger.fusion_results
+    final_result_right, final_result_left = list(), list()
+    for timestamp, hands in data_merger.fusion_results:
+        if "Right" in hands:
+            final_result_right.append((timestamp, hands["Right"]))
+        if "Left" in hands:
+            final_result_left.append((timestamp, hands["Left"]))
+
+    draw_hand_animated(final_result_right)
+
+
+if __name__ == "__main__":
+    warnings.filterwarnings(
+        "ignore", category=UserWarning, module="google.protobuf.symbol_database"
+    )
+    main()

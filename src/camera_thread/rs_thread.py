@@ -16,6 +16,10 @@ import pyrealsense2 as rs
 # deque collection for frames
 from collections import deque
 
+# models
+from hand_recognition.HolisticLandmarker import HolisticLandmarker
+from hand_recognition.Landmarker import Landmarker
+
 
 class CameraThreadRS(Thread):
     """
@@ -31,6 +35,10 @@ class CameraThreadRS(Thread):
         Event to stop the thread
     target: deque[tuple[int, int, np.array, np.array, rs.pyrealsense2.intrinsics]]
         A place to save the result (timestamp, cameara_id, color_frame, depth_frame, intrinsics)
+    process_images: bool = False
+        If thread must process sequence of images itself.
+    use_holistics: bool = False
+        If we need to use holisics model.
     """
 
     def __init__(
@@ -39,6 +47,8 @@ class CameraThreadRS(Thread):
         camera_id: str,
         close_event: Event,
         target: deque[tuple[int, int, np.array, np.array, rs.pyrealsense2.intrinsics]],
+        process_images: bool = False,
+        use_holistics: bool = False,
     ):
         """
         Initialize a new instance of RS-Thread for a camera.
@@ -53,11 +63,17 @@ class CameraThreadRS(Thread):
             Event to stop the thread
         target: list[tuple]
             A place to save the result (timestamp, color_frame, depth_frame, intrinsics)
+        process_images: bool = False
+            If thread must process sequence of images itself.
+        use_holistics: bool = False
+            If we need to use holisics model.
         """
         Thread.__init__(self)
         self.camera = camera(camera_name, camera_id)
         self.close_event = close_event
         self.capture_target = target
+        self.process_images = process_images
+        self.use_holistics = use_holistics
 
     def get_name(self) -> str:
         """
@@ -107,6 +123,21 @@ class CameraThreadRS(Thread):
             # if threads are stopped
             if self.close_event.is_set():
                 break
+
+        # stop camera
+        self.camera.stop()
+
+        # process images as sequence
+        if self.process_images:
+            # define mode
+            landmarker = HolisticLandmarker() if self.use_holistics else Landmarker()
+
+            # process frames
+            processed = landmarker.process_frames(self.capture_target)
+
+            # stopr frames
+            self.capture_target.clear()
+            self.capture_target.extend(processed)
 
     @classmethod
     def returnCameraIndexes(cls) -> list[tuple[str, str]]:

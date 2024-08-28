@@ -76,6 +76,7 @@ class CoordinateTransformer:
 
         # apply transformation
         y_data = np.dot(self.transformations[camera_id], x_data)
+        y_data = y_data[:3]  # we need only first 3 columns because the 4-th is ones !!!
 
         return y_data.T
 

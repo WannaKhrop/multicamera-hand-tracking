@@ -8,11 +8,15 @@ Date: 06.08.2024
 # paths to different folders
 # assuming that modules main.py and find_transformation.py are running
 
-PATH_TO_TRANSFORMATION = "..\\transformations\\"  # transformations
+# PATH_TO_TRANSFORMATION = "..\\transformations\\"
+PATH_TO_TRANSFORMATION = "transformations\\"  # transformations
 
-PATH_TO_MODEL = "..\\models\\hand_landmarker.task"  # path to model
+# PATH_TO_MODEL = "..\\models\\hand_landmarker.task"
+PATH_TO_MODEL = "models\\hand_landmarker.task"  # path to model
 
 PATH_TO_DATA_FOLDER = "..\\data\\"  # path to data folder
+
+PATH_TO_VIDEOS = "..\\videos\\"
 
 # numpy format
 NUMPY_FILE_EXT = ".npy"

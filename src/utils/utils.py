@@ -5,8 +5,15 @@ Author: Ivan Khrop
 Date: 21.07.2024
 """
 import numpy as np
+import cv2
 import pyrealsense2 as rs
 from collections import deque
+
+from utils.constants import (
+    PATH_TO_VIDEOS,
+    CAMERA_RESOLUTION_WIDTH,
+    CAMERA_RESOLUTION_HEIGHT,
+)
 
 
 def merge_sorted_lists(
@@ -180,3 +187,29 @@ def softmax(data: np.ndarray, temperature: float = 1.0) -> np.ndarray:
     softmax_matrix = exp_vals / sum_exp_vals
 
     return softmax_matrix
+
+
+def make_video(
+    frames: deque[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]],
+):
+    """
+    Create video from frames.
+
+    Parameters
+    ----------
+    frames: deque[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]]
+    """
+    if len(frames) == 0:
+        return
+
+    video_name = PATH_TO_VIDEOS + frames[0][1] + ".avi"
+    codec = cv2.VideoWriter_fourcc(*"XVID")
+    video = cv2.VideoWriter(
+        video_name, codec, 20, (CAMERA_RESOLUTION_WIDTH, CAMERA_RESOLUTION_HEIGHT)
+    )
+
+    for _, _, frame, _, _ in frames:
+        video.write(frame)
+
+    cv2.destroyAllWindows()
+    video.release()

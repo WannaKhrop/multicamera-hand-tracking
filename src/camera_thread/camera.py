@@ -176,11 +176,15 @@ class camera:
             return [-1, -1, -1]
 
     def __del__(self):
-        """
-        Destroy an instance of a camera.
-        """
+        """Destroy an instance of a camera."""
         if self.pipeline_started:
             self.pipeline.stop()
+
+    def stop(self):
+        """Stop camera."""
+        if self.pipeline_started:
+            self.pipeline.stop()
+            self.pipeline_started = False
 
     @classmethod
     def get_camera_coordinates(

@@ -8,16 +8,65 @@ Date: 27.07.2024
 import numpy as np
 import pandas as pd
 from typing import Callable
-from shapely.geometry import Polygon
 
 from utils.utils import softmax
+from matplotlib import pyplot as plt
 
 from hand_recognition.HandLandmarks import (
     finger_connections,
     palm_landmarks,
-    fingers_landmarks,
     HandLandmark,
 )
+
+
+def draw_palm_polygon(polygon: list[np.array], point: np.array):
+    """
+    Draw palm polygon and point of projection.
+
+    For testing purposes.
+
+    Parameters
+    ----------
+    polygon: list[np.array]
+        Polygon with points.
+    point: np.array
+        Point to draw.
+    """
+    # Create a 3D plot
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection="3d")
+
+    np_polygon = np.array(polygon)
+    # Plot the line
+    ax.plot(
+        np_polygon[:, 0],
+        np_polygon[:, 1],
+        np_polygon[:, 2],
+        color="blue",
+        label="3D Line",
+    )
+
+    # Plot the points
+    ax.scatter(
+        np_polygon[:, 0],
+        np_polygon[:, 1],
+        np_polygon[:, 2],
+        color="red",
+        s=100,
+        label="Palm",
+    )
+    ax.scatter(point[0], point[1], point[2], color="green", s=100, label="Point")
+
+    # Add labels
+    ax.set_xlabel("X axis")
+    ax.set_ylabel("Y axis")
+    ax.set_zlabel("Z axis")
+
+    # Add a legend
+    ax.legend()
+
+    # Show the plot
+    plt.show()
 
 
 def define_line(point1: np.ndarray, point2: np.ndarray) -> Callable:
@@ -65,12 +114,17 @@ def project_point_to_line(
     np.ndarray:
         Projection point of Q to the line P1 + t * (P2 - P1).
     """
-    line_vector = point2 - point1  # Direction vector
-    vector_to_point = target - point1  # Vector from P1 to target
-    scale = np.dot(vector_to_point, line_vector) / np.dot(
-        line_vector, line_vector
-    )  # Projection scalar
-    return point1 + scale * line_vector  # Projection point
+    # Direction vector
+    line_vector = point2 - point1
+    line_vector_normalized = line_vector / np.linalg.norm(line_vector)
+
+    # Vector from P1 to target
+    vector_to_point = target - point1
+
+    # projection length
+    scale = np.dot(vector_to_point, line_vector_normalized)
+
+    return point1 + scale * line_vector_normalized  # Projection point
 
 
 def find_palm_plane(df_palm_landmarks: pd.DataFrame) -> np.ndarray:
@@ -101,9 +155,9 @@ def find_palm_plane(df_palm_landmarks: pd.DataFrame) -> np.ndarray:
     # get coefficients
     normal = np.cross(vector1, vector2)
     A, B, C = normal
-    D = -np.dot(normal, wrist_point)
+    D = -1.0 * np.dot(normal, wrist_point)
 
-    return np.ndarray([A, B, C, D])
+    return np.array([A, B, C, D], dtype=float)
 
 
 def project_point_to_plane(plane: np.ndarray, point: np.array) -> np.ndarray:
@@ -122,12 +176,14 @@ def project_point_to_plane(plane: np.ndarray, point: np.array) -> np.ndarray:
     np.ndarray:
         Projection point
     """
-    point_ext = np.hstac([point, np.ones(1)])
+    # get points and normal vector
+    point_ext = np.hstack([point, np.ones(1)])
     normal_vector = np.array([plane[0], plane[1], plane[2]])
+    normal_vector_normalized = normal_vector / np.linalg.norm(normal_vector)
 
     d = np.dot(point_ext, plane) / np.linalg.norm(normal_vector)
 
-    return point + d * normal_vector
+    return point - d * normal_vector_normalized
 
 
 def cosine(v1: np.ndarray, v2: np.ndarray) -> float:
@@ -146,6 +202,9 @@ def cosine(v1: np.ndarray, v2: np.ndarray) -> float:
     float:
         Cosine between two vectors
     """
+    if abs(np.linalg.norm(v2)) < 1e-6 or abs(np.linalg.norm(v1)) < 1e-6:
+        return 0.0
+
     cosine = np.dot(v1, v2) / np.linalg.norm(v1) / np.linalg.norm(v2)
     return cosine
 
@@ -182,19 +241,72 @@ def is_between(point1: np.ndarray, point2: np.ndarray, target: np.ndarray):
     return result
 
 
-def construct_palm_polygon(df_palm_landmarks: pd.DataFrame) -> Polygon:
+def is_inside_palm(polygon: list[np.array], plane: np.array, point: np.array) -> bool:
+    """
+    Check if point is inside a poligon. All points of polygon belong to one plane !!!
+
+    Paramerters
+    -----------
+    polygon: list[np.array]
+        Polygon of points that defines a convex hull palm.
+    plane: np.array
+        Plane that defines polygon.
+    point: np.array
+        Point to be checked.
+
+    Returns
+    -------
+        True, if point belongs to polygon.
+        False, otherwise.
+    """
+    # results
+    list_of_checks = []
+
+    normal_vector = plane[:3] / np.linalg.norm(plane[:3])  # x, y, z - coordinates
+
+    for i in range(1, len(polygon)):
+        p_start, p_finish = polygon[i - 1], polygon[i]
+
+        # create vectors
+        vect_start = point - p_start
+        vect_finish = p_finish - point
+
+        # get normalized dot product
+        cross_product = np.cross(vect_start, vect_finish)
+        cross_product /= np.linalg.norm(cross_product)
+
+        # get cosine with plane normal vector (can be 1 or -1)
+        list_of_checks.append(np.dot(cross_product, normal_vector))
+
+    # if all the time we have the same oriented cross-product
+    result = np.array(list_of_checks)
+    # print(result)
+    # draw data
+    # draw_palm_polygon(polygon, point)
+    # input("Check data")
+
+    return (result > 0).all() or (result < 0).all()
+
+
+def construct_palm_polygon(
+    df_palm_landmarks: pd.DataFrame, plane: np.array
+) -> list[np.array]:
     """
     Construct a polygon for the landmarks of a palm.
 
     Parameters
     ----------
     df_palm_landmarks: pd.DataFrame
-        Landmarks of mediapipe that define palm points = [0, 5, 9, 13, 17]
+        Landmarks of mediapipe that define palm points = [0, 5, 9, 13, 17].
+    plane: np.array
+        Plane [A, B, C, D] that defines plane of a palm.
 
     Returns
     -------
-    Polygon:
-        Polygon of points that define a palm
+    list[np.array]
+        Polygon of points that defines palm like:
+        INDEX=>MIDDLE=>RING=>PINKY=>PALM_BOTTOM_RIGHT=>WRIST=>PALM_BOTTOM_LEFT=>INDEX.
+        All points belong to palm plane.
     """
     # firstly let's find bottom points of the palm
     PALM_INDEX_FINGER = HandLandmark.INDEX_FINGER_MCP.value
@@ -216,17 +328,26 @@ def construct_palm_polygon(df_palm_landmarks: pd.DataFrame) -> Polygon:
     wrist_left = np.array(df_palm_landmarks.loc[PALM_INDEX_FINGER]) + projection_vector
     wrist_right = np.array(df_palm_landmarks.loc[PALM_PINKY_FINGER]) + projection_vector
 
-    polygon = Polygon(
-        [
-            np.array(df_palm_landmarks.loc[PALM_INDEX_FINGER]),
-            np.array(df_palm_landmarks.loc[PALM_MIDDLE_FINGER]),
-            np.array(df_palm_landmarks.loc[PALM_RING_FINGER]),
-            np.array(df_palm_landmarks.loc[PALM_PINKY_FINGER]),
-            wrist_right,
-            np.array(df_palm_landmarks.loc[PALM_WRIST]),
-            wrist_left,
-        ]
+    # project middle finger on plane
+    middle_finger_projection = project_point_to_plane(
+        plane=plane, point=np.array(df_palm_landmarks.loc[PALM_MIDDLE_FINGER])
     )
+
+    # ring finger projection
+    ring_finger_projection = project_point_to_plane(
+        plane=plane, point=np.array(df_palm_landmarks.loc[PALM_RING_FINGER])
+    )
+
+    polygon = [
+        np.array(df_palm_landmarks.loc[PALM_INDEX_FINGER]),
+        middle_finger_projection,
+        ring_finger_projection,
+        np.array(df_palm_landmarks.loc[PALM_PINKY_FINGER]),
+        wrist_right,
+        np.array(df_palm_landmarks.loc[PALM_WRIST]),
+        wrist_left,
+        np.array(df_palm_landmarks.loc[PALM_INDEX_FINGER]),
+    ]
 
     return polygon
 
@@ -248,22 +369,18 @@ def assign_visability(df_landmarks: pd.DataFrame):
     camera_vector = np.array([0.0, 0.0, -1.0])
 
     # create polygon using palm landmarks
-    palm_poligon = construct_palm_polygon(df_landmarks.loc[palm_landmarks])
     palm_plane = find_palm_plane(df_landmarks.loc[palm_landmarks])
+    palm_poligon = construct_palm_polygon(df_landmarks.loc[palm_landmarks], palm_plane)
 
     visibility_dict = dict()
     # go over all landmarks
     for idx in df_landmarks_sorted.index:
-        # if it's a palm landmark then assign visibility = 1.0
-        if idx not in fingers_landmarks:
-            visibility_dict[idx] = 1.0
-            continue
-
         # at the beginning we assume maximal visibility
         visibility = 1.0
 
         # go over all hand connections and check if this landmarks is hiiden by another finger
         for p_idx_1, p_idx_2 in finger_connections:
+            """
             # if this landmark is a part of the segment => no need to check
             if p_idx_1 == idx or p_idx_2 == idx:
                 continue
@@ -271,8 +388,9 @@ def assign_visability(df_landmarks: pd.DataFrame):
             # if at least one point of the segment is further from camera => no need to check
             if (
                 df_landmarks_sorted.loc[p_idx_1].z >= df_landmarks_sorted.loc[idx].z
-            ) or (df_landmarks_sorted.loc[p_idx_2].z >= df_landmarks_sorted.loc[idx].z):
+            ) and (df_landmarks_sorted.loc[p_idx_2].z >= df_landmarks_sorted.loc[idx].z):
                 continue
+            """
 
             projection_point = project_point_to_line(
                 point1=np.array(df_landmarks_sorted.loc[p_idx_1]),
@@ -289,25 +407,29 @@ def assign_visability(df_landmarks: pd.DataFrame):
                 projection_vector = projection_point - np.array(
                     df_landmarks_sorted.loc[idx]
                 )
+
                 cosine_value = cosine(projection_vector, camera_vector)
 
                 visibility = min(visibility, min(1.0, 1.0 - cosine_value))
 
-        # check if a landmark is actually hidden by the palm
-        palm_projection = project_point_to_plane(
-            palm_plane, np.array(df_landmarks_sorted.loc[idx])
-        )
-
-        # if projection point is inside of palm
-        if palm_poligon.contains(palm_projection):
-            # get a projections vector
-            palm_projection_vector = palm_projection - np.array(
-                df_landmarks_sorted.loc[idx]
+        # if it's a palm landmark then assign visibility = 1.0
+        if idx not in palm_landmarks:
+            # check if a landmark is actually hidden by the palm
+            palm_projection = project_point_to_plane(
+                palm_plane, np.array(df_landmarks_sorted.loc[idx])
             )
 
-            cosine_value = cosine(palm_projection_vector, camera_vector)
+            # if projection point is inside of palm
+            if is_inside_palm(
+                polygon=palm_poligon, plane=palm_plane, point=palm_projection
+            ):
+                # get a projections vector
+                palm_projection_vector = palm_projection - np.array(
+                    df_landmarks_sorted.loc[idx]
+                )
 
-            visibility = min(visibility_dict, min(1.0, 1.0 - cosine_value))
+                cosine_value = cosine(palm_projection_vector, camera_vector)
+                visibility = min(visibility, min(1.0, 1.0 - cosine_value))
 
         visibility_dict[idx] = visibility
 

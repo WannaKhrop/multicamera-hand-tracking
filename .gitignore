@@ -13,3 +13,4 @@ src/camera_thread/simple_thread.py
 *.png
 *.jpeg
 *.pdf
+*.gif
