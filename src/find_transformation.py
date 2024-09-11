@@ -36,7 +36,7 @@ def main():
     file_pattern = PATH_TO_DATA_FOLDER.joinpath("*.csv")
 
     # Find all CSV files in the directory
-    csv_files = glob.glob(file_pattern)
+    csv_files = glob.glob(str(file_pattern))
 
     # Read each CSV file and store the DataFrames in a list
     for file in csv_files:

@@ -41,9 +41,9 @@ CAMERA_RESOLUTION_WIDTH = 1920
 CAMERA_RESOLUTION_HEIGHT = 1080
 
 # softmax parameter to make fusion
-SOFTMAX_PARAM = 20.0
+SOFTMAX_PARAM = 50.0
 
 # time delay parameter
 # each timestamp is time() * 1000.
 # TIME_DELTA defines time diffence in 1e-3 sec.
-TIME_DELTA = 100  # each TIME_DELTA * 1e-3 sec.
+TIME_DELTA = 10  # each TIME_DELTA * 1e-3 sec.

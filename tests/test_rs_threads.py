@@ -40,3 +40,5 @@ def test_threads_rs():
             number_of_cameras_used += 1
 
     assert True
+
+test_threads_rs()

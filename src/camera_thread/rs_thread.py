@@ -121,7 +121,7 @@ class CameraThreadRS(Thread):
             )
 
             # give time for other threads
-            sleep(0.02)
+            sleep(0.005)
 
             # if threads are stopped
             if self.close_event.is_set():

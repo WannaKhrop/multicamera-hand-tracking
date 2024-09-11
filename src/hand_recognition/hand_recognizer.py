@@ -139,17 +139,17 @@ def draw_hand_animated(
     ax.view_init(elev=elevation, azim=azimuth)
 
     # Set the limits of the axes
-    ax.set_xlim(-0.3, 0.3)
-    ax.set_ylim(-0.3, 0.3)
-    ax.set_zlim(-0.3, 0.3)
+    ax.set_xlim(-0.5, 0.5)
+    ax.set_ylim(-0.5, 0.5)
+    ax.set_zlim(0.0, 0.5)
 
     # Function to update the plot
     def update(frame_id):
         # clear plot
         ax.clear()
-        ax.set_xlim(-0.3, 0.3)
-        ax.set_ylim(-0.3, 0.3)
-        ax.set_zlim(-0.3, 0.3)
+        ax.set_xlim(-0.5, 0.5)
+        ax.set_ylim(-0.5, 0.5)
+        ax.set_zlim(0.0, 0.5)
 
         # get next set of landmarks
         landmarks = hand_landmarks[frame_id][1]  # get pd.DataFrame
@@ -256,8 +256,8 @@ def draw_hand_animated_plotly(
         fig = go.Figure()
         fig.update_layout(
             autosize=False,
-            width=500,
-            height=500,
+            width=2000,
+            height=2000,
             scene=dict(
                 xaxis_title="X Axis",
                 yaxis_title="Y Axis",
@@ -366,8 +366,8 @@ def draw_hand_animated_plotly(
             xaxis_title="X Axis",
             yaxis_title="Y Axis",
             zaxis_title="Z Axis",
-            xaxis=dict(range=(-1.5, 1.5), autorange=False),  # Set the x-axis limit
-            yaxis=dict(range=(-1.5, 1.5), autorange=False),  # Set the y-axis limit
+            xaxis=dict(range=(-0.5, 0.5), autorange=False),  # Set the x-axis limit
+            yaxis=dict(range=(-0.5, 0.5), autorange=False),  # Set the y-axis limit
             zaxis=dict(range=(0.0, 2.0), autorange=False),  # Set the z-axis limit
             camera=dict(eye=dict(x=azimuth / 10, y=elevation / 10, z=1.5)),
         ),
@@ -545,9 +545,7 @@ def convert_hand_holistic(
         )
 
         # if distance to camera is small, then we did not recognize this point => visibility = 0.0
-        if landmarks.loc[idx, "z"] < 1e-3:
-            landmarks.loc[idx, "visibility"] = 0.0
-        elif landmarks.loc[idx, "z"] < dist:
+        if landmarks.loc[idx, "z"] < dist and landmarks.loc[idx, "z"] > 1e-3:
             dist = landmarks.loc[idx, "z"]
             closest_point_landmark_idx = idx
 
@@ -563,7 +561,7 @@ def convert_hand_holistic(
     landmarks["z"] = real_depth
 
     # handle zeros where depth was missed
-    landmarks[landmarks["visibility"] < 1e-3] = np.zeros(4)
+    # landmarks[landmarks["visibility"] < 1e-3] = np.zeros(4)
 
     return landmarks
 
