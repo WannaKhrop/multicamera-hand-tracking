@@ -13,6 +13,8 @@ from mediapipe.tasks.python.components.containers import NormalizedLandmark, Lan
 # import compenents for math and plots
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
+from mpl_toolkits.mplot3d import Axes3D
+import plotly.graph_objs as go
 import numpy as np
 import pandas as pd
 import cv2
@@ -20,47 +22,12 @@ import cv2
 # import additional staff
 from camera_thread.camera import camera
 from hand_recognition.HandLandmarks import HandLandmark
-from hand_recognition.LandmarkerSingleton import LandmarkerSingleton
-from hand_recognition.HolisticLandmarkerSingleton import HolisticLandmarkerSingleton
 
 # RealSense for typing
 import pyrealsense2 as rs
 
 from utils.constants import CAMERA_RESOLUTION_HEIGHT, CAMERA_RESOLUTION_WIDTH
 from utils.geometry import assign_visability
-
-
-def process_image(
-    image: np.ndarray, holistic: bool = False
-) -> mp.tasks.vision.HolisticLandmarkerResult:  # type: ignore
-    """
-    Return results of the detection for an image.
-
-    Parameters
-    ----------
-    image: np.ndarray
-        Image that must be processed
-    holistic: bool = False
-        Which model to use. By default => HandModel.
-        If True, use HolisticModel
-
-    Returns
-    -------
-    detection_results: mediapipe.tasks.python.vision.hand_landmarker.HandLandmarkerResult
-        Results of mediapipe
-    """
-    # convert image to mediapipe
-    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)
-
-    # process image
-    if holistic:
-        landmarker = HolisticLandmarkerSingleton()
-        results = landmarker.process(image)
-    else:
-        landmarker = LandmarkerSingleton()
-        results = landmarker.detect(mp_image)
-
-    return results
 
 
 def draw_hand(
@@ -90,7 +57,7 @@ def draw_hand(
     )
 
     plt.figure(figsize=(10, 10))
-    ax = plt.axes(projection="3d")
+    ax: Axes3D = plt.axes(projection="3d")
     ax.view_init(elev=elevation, azim=azimuth)
     plotted_landmarks = {}
 
@@ -168,7 +135,7 @@ def draw_hand_animated(
 
     # create initials
     fig = plt.figure(figsize=(10, 10))
-    ax = plt.axes(projection="3d")
+    ax: Axes3D = plt.axes(projection="3d")
     ax.view_init(elev=elevation, azim=azimuth)
 
     # Set the limits of the axes
@@ -250,6 +217,161 @@ def draw_hand_animated(
         fig, update, frames=np.arange(0, len(hand_landmarks)), interval=200, blit=False
     )
     ani.save("3d_animation.gif", writer="pillow", fps=5)
+
+    plt.show()
+
+
+def draw_hand_animated_plotly(
+    hand_landmarks: list[tuple[int, pd.DataFrame]],
+    azimuth: int = 10,
+    elevation: int = 10,
+):
+    """
+    Draw 3D model for the provided list of landmarks.
+
+    Parameters
+    ----------
+    hand_landmarks : list[tuple[int, pd.DataFrame]]
+        List of detected hand landmarks to be drawn.
+    azimuth : int
+        Angle to turn the 3D plot.
+    elevation : int
+        Value to elevate the 3D plot.
+    """
+
+    def _normalize_color(color):
+        return f"rgb({color[0]}, {color[1]}, {color[2]})"
+
+    connection_drawing_spec = (
+        solutions.drawing_styles.get_default_hand_connections_style()
+    )
+
+    # Function to create frames for animation
+    frames: list[go.Frame] = list()
+
+    for frame_id in range(len(hand_landmarks)):
+        landmarks = hand_landmarks[frame_id][1]  # get pd.DataFrame
+        plotted_landmarks = {}
+
+        fig = go.Figure()
+        fig.update_layout(
+            autosize=False,
+            width=500,
+            height=500,
+            scene=dict(
+                xaxis_title="X Axis",
+                yaxis_title="Y Axis",
+                zaxis_title="Z Axis",
+                xaxis=dict(range=(-1.5, 1.5), autorange=False),  # Set the x-axis limit
+                yaxis=dict(range=(-1.5, 1.5), autorange=False),  # Set the y-axis limit
+                zaxis=dict(range=(0.0, 2.0), autorange=False),  # Set the z-axis limit
+                camera=dict(eye=dict(x=azimuth / 10, y=elevation / 10, z=1.5)),
+            ),
+        )
+
+        # Create scatter plot for landmarks
+        scatter_data = go.Scatter3d(
+            x=[],
+            y=[],
+            z=[],
+            mode="markers+text",
+            text=[],
+            textposition="top center",
+            marker=dict(size=5, color="black"),
+        )
+
+        for idx in landmarks.index:
+            if landmarks.loc[idx].z < 1e-3:
+                continue
+
+            scatter_data["x"] += tuple([landmarks.loc[idx].x])
+            scatter_data["y"] += tuple([landmarks.loc[idx].y])
+            scatter_data["z"] += tuple([landmarks.loc[idx].z])
+            scatter_data["text"] += tuple([str(idx)])
+
+            plotted_landmarks[idx] = (
+                landmarks.loc[idx].x,
+                landmarks.loc[idx].y,
+                landmarks.loc[idx].z,
+            )
+
+        fig.add_trace(scatter_data)
+
+        # Draw connections
+        for connection in solutions.hands.HAND_CONNECTIONS:
+            start_idx, end_idx = connection
+            key = (start_idx, end_idx)
+            if not (0 <= start_idx < len(landmarks) and 0 <= end_idx < len(landmarks)):
+                continue
+
+            if landmarks.loc[start_idx].z < 1e-3 or landmarks.loc[end_idx].z < 1e-3:
+                continue
+
+            if start_idx in plotted_landmarks and end_idx in plotted_landmarks:
+                landmark_pair = [
+                    plotted_landmarks[start_idx],
+                    plotted_landmarks[end_idx],
+                ]
+
+                fig.add_trace(
+                    go.Scatter3d(
+                        x=[landmark_pair[0][0], landmark_pair[1][0]],
+                        y=[landmark_pair[0][1], landmark_pair[1][1]],
+                        z=[landmark_pair[0][2], landmark_pair[1][2]],
+                        mode="lines",
+                        line=dict(
+                            color=_normalize_color(
+                                connection_drawing_spec[key].color[::-1]
+                            ),
+                            width=connection_drawing_spec[key].thickness,
+                        ),
+                    )
+                )
+
+        # Append current frame to frames list
+        frames.append(go.Frame(data=fig.data))
+
+    # Add frames to the figure
+    plt = go.Figure(
+        frames=frames,
+        data=frames[0].data,
+    )
+
+    # Update layout
+    plt.update_layout(
+        autosize=False,
+        width=500,
+        height=500,
+        updatemenus=[
+            dict(
+                type="buttons",
+                showactive=False,
+                buttons=[
+                    dict(
+                        label="Play",
+                        method="animate",
+                        args=[
+                            None,
+                            {
+                                "frame": {"duration": 50, "redraw": True},
+                                "fromcurrent": True,
+                            },
+                        ],
+                    )
+                ],
+            )
+        ],
+        title="Animated 3D Hand Model",
+        scene=dict(
+            xaxis_title="X Axis",
+            yaxis_title="Y Axis",
+            zaxis_title="Z Axis",
+            xaxis=dict(range=(-1.5, 1.5), autorange=False),  # Set the x-axis limit
+            yaxis=dict(range=(-1.5, 1.5), autorange=False),  # Set the y-axis limit
+            zaxis=dict(range=(0.0, 2.0), autorange=False),  # Set the z-axis limit
+            camera=dict(eye=dict(x=azimuth / 10, y=elevation / 10, z=1.5)),
+        ),
+    )
 
     plt.show()
 
@@ -494,7 +616,7 @@ def convert_to_camera_coordinates(
     mp_results: mp.tasks.vision.HolisticLandmarkerResult,  # type: ignore
     depth_frame: np.ndarray,
     intrinsics: rs.pyrealsense2.intrinsics,
-) -> dict[str, np.array]:
+) -> dict[str, pd.DataFrame]:
     """
     Apply mediapipe to color_frame and extract camera coordinates of each landmark.\
     
@@ -512,42 +634,61 @@ def convert_to_camera_coordinates(
     dict[str, np.ndarray]
         Extracted landmarks for each hand.
     """
-    hands = {}
+    hands: dict[str, pd.DataFrame] = dict()
+
     for idx, hand in enumerate(mp_results.handedness):
         # get index and hand
-        name = hand[0].category_name
+        name = str(hand[0].category_name)
 
         # get hand world landmarks
         world_landmarks = to_numpy_ndarray(mp_results.hand_world_landmarks[idx])
 
         # get normalized landmarks
-        landmarks = to_numpy_ndarray(mp_results.hand_landmarks[idx])
-
-        # get the closest point to the camera according to z-axis
-        closest_point_landmark = HandLandmark(np.argmin(world_landmarks[:, 2]))
-        closest_point_idx = closest_point_landmark.value
-
-        # identify pixels
-        closest_point = get_depth_data_from_pixel(
-            x=landmarks[closest_point_idx][0],
-            y=landmarks[closest_point_idx][1],
-            depth_frame=depth_frame,
-            intrinsics=intrinsics,
+        landmarks: pd.DataFrame = hand_to_df(
+            to_numpy_ndarray(mp_results.hand_landmarks[idx])
         )
 
+        # get the closest point to the camera according to z-axis
+        closest_point_landmark_idx = 0
+        dist = 99.0
+
+        # get coords
+        coords = ["x", "y", "z"]
+        for idx in landmarks.index:
+            x, y = landmarks.loc[idx].x, landmarks.loc[idx].y
+            landmarks.loc[idx, coords] = get_depth_data_from_pixel(
+                x, y, depth_frame, intrinsics
+            )
+
+            # if distance to camera is small
+            if landmarks.loc[idx, "z"] < dist:
+                dist = landmarks.loc[idx, "z"]
+                closest_point_landmark_idx = idx
+
         # make the closest point a new center of coordinates
-        hand_with_new_origin = change_origin(closest_point_landmark, world_landmarks)
+        hand_with_new_origin = change_origin(
+            HandLandmark(closest_point_landmark_idx), world_landmarks
+        )
 
         # add the real world coordinates to the camera coordinates
-        # save result for hand
-        hands[name] = closest_point + hand_with_new_origin
+        landmarks[coords] = (
+            landmarks.loc[closest_point_landmark_idx, coords].values
+            + hand_with_new_origin
+        )
+
+        # assign visibility
+        assign_visability(df_landmarks=landmarks)
+
+        # save
+        hands[name] = landmarks
 
     return hands
 
 
 def draw_landmarks_on_image(
-    annotated_image: np.array, detection_result: list[NormalizedLandmark]
-):  # type: ignore
+    annotated_image: np.ndarray,
+    detection_result,  # type: ignore
+):
     """
     Annotate image with detected landmarks.
 
@@ -611,7 +752,8 @@ def draw_landmarks_on_image(
 
 
 def draw_landmarks_holistics(
-    annotated_image: np.array, detection_result: list[NormalizedLandmark]
+    annotated_image: np.array,
+    detection_result: list[NormalizedLandmark],  # type: ignore
 ):  # type: ignore
     """
     Annotate image with detected landmarks.

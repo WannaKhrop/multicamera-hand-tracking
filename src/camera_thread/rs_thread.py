@@ -6,7 +6,8 @@ Date: 23.07.2024
 """
 # import basic libraries
 from threading import Thread, Event
-from time import time
+from time import time, sleep
+import pandas as pd
 import numpy as np
 
 # realsense camera
@@ -29,7 +30,7 @@ class CameraThreadRS(Thread):
     ----------
     camera_name: str
         Name of a camera that will take pictures for this thread
-    camera_id: int
+    camera_id: str
         ID of a camera that will take pictures for this thread
     close_event: Event
         Event to stop the thread
@@ -46,8 +47,7 @@ class CameraThreadRS(Thread):
         camera_name: str,
         camera_id: str,
         close_event: Event,
-        target: deque[tuple[int, int, np.array, np.array, rs.pyrealsense2.intrinsics]],
-        process_images: bool = False,
+        target: deque[tuple[int, str, dict[str, pd.DataFrame]]],
         use_holistics: bool = False,
     ):
         """
@@ -61,18 +61,18 @@ class CameraThreadRS(Thread):
             ID of a camera that will take pictures for this thread
         close_event: Event
             Event to stop the thread
-        target: list[tuple]
+        target: deque[tuple[int, str, dict[str, pd.DataFrame]]]
             A place to save the result (timestamp, color_frame, depth_frame, intrinsics)
-        process_images: bool = False
-            If thread must process sequence of images itself.
         use_holistics: bool = False
             If we need to use holisics model.
         """
         Thread.__init__(self)
         self.camera = camera(camera_name, camera_id)
         self.close_event = close_event
+        self.frames: deque[
+            tuple[int, str, np.ndarray, np.ndarray, rs.pyrealsense2.intrinsics]
+        ] = deque()
         self.capture_target = target
-        self.process_images = process_images
         self.use_holistics = use_holistics
 
     def get_name(self) -> str:
@@ -110,7 +110,7 @@ class CameraThreadRS(Thread):
             time_stamp = int(time() * 1000)
 
             # save the results of this frame
-            self.capture_target.append(
+            self.frames.append(
                 (
                     time_stamp,
                     self.camera.device_id,
@@ -120,6 +120,9 @@ class CameraThreadRS(Thread):
                 )
             )
 
+            # give time for other threads
+            sleep(0.02)
+
             # if threads are stopped
             if self.close_event.is_set():
                 break
@@ -127,17 +130,16 @@ class CameraThreadRS(Thread):
         # stop camera
         self.camera.stop()
 
-        # process images as sequence
-        if self.process_images:
-            # define mode
-            landmarker = HolisticLandmarker() if self.use_holistics else Landmarker()
+        # define mode
+        if self.use_holistics:
+            holistic_landmarker = HolisticLandmarker()
+            processed = holistic_landmarker.process_frames(self.frames)
+        else:
+            landmarker = Landmarker()
+            processed = landmarker.process_frames(self.frames)
 
-            # process frames
-            processed = landmarker.process_frames(self.capture_target)
-
-            # stopr frames
-            self.capture_target.clear()
-            self.capture_target.extend(processed)
+        # store frames
+        self.capture_target.extend(processed)
 
     @classmethod
     def returnCameraIndexes(cls) -> list[tuple[str, str]]:

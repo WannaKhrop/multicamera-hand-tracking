@@ -33,7 +33,7 @@ def main():
     assert args.mode in ["mse", "umeyama"], 'Possible modes are: "mse", "umeyama"'
 
     # find all .csv files in data directory
-    file_pattern = os.path.join(PATH_TO_DATA_FOLDER, "*.csv")
+    file_pattern = PATH_TO_DATA_FOLDER.joinpath("*.csv")
 
     # Find all CSV files in the directory
     csv_files = glob.glob(file_pattern)

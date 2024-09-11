@@ -10,8 +10,14 @@ import pyrealsense2 as rs
 import numpy as np
 import pandas as pd
 
-from hand_recognition.hand_recognizer import convert_to_camera_coordinates_holistic
+from hand_recognition.hand_recognizer import (
+    convert_to_camera_coordinates_holistic,
+    draw_landmarks_holistics,
+)
 from utils.coordinate_transformer import CoordinateTransformer
+from utils.utils import make_video
+
+from typing import Iterable
 
 
 class HolisticLandmarker:
@@ -58,8 +64,10 @@ class HolisticLandmarker:
 
     def process_frames(
         self,
-        frames: list[tuple[int, int, np.array, np.array, rs.pyrealsense2.intrinsics]],
-    ) -> list[tuple[int, int, dict[str, pd.DataFrame]]]:
+        frames: Iterable[
+            tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]
+        ],
+    ) -> Iterable[tuple[int, str, dict[str, pd.DataFrame]]]:
         # define transformer
         transformer = CoordinateTransformer()
 
@@ -68,6 +76,10 @@ class HolisticLandmarker:
         for timestamp, camera_id, color_frame, depth_frame, intrinsics in frames:
             # process image and get information
             mp_results = self.process_image(color_frame)
+
+            draw_landmarks_holistics(color_frame, mp_results.left_hand_landmarks)
+            draw_landmarks_holistics(color_frame, mp_results.right_hand_landmarks)
+
             detected_hands = convert_to_camera_coordinates_holistic(
                 mp_results, depth_frame, intrinsics
             )
@@ -86,5 +98,7 @@ class HolisticLandmarker:
 
             # save detected results
             detected_results.append((timestamp, camera_id, detected_hands))
+
+        make_video(frames=frames)
 
         return detected_results

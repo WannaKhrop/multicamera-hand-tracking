@@ -7,7 +7,6 @@ Date: 09.08.2024
 """
 # import some important data
 import numpy as np
-import os
 import glob
 
 from utils.constants import PATH_TO_TRANSFORMATION, NUMPY_FILE_EXT
@@ -33,15 +32,15 @@ class CoordinateTransformer:
             cls._instance.transformations = dict()
 
             # find all .csv files in data directory
-            file_pattern = os.path.join(PATH_TO_TRANSFORMATION, f"*{NUMPY_FILE_EXT}")
+            file_pattern = PATH_TO_TRANSFORMATION.joinpath(f"*{NUMPY_FILE_EXT}")
 
             # Find all CSV files in the directory
-            np_files = glob.glob(file_pattern)
+            np_files = glob.glob(str(file_pattern))
 
             # Read each CSV file and store the DataFrames in a list
             for file in np_files:
                 # get camera id as string from name of a file
-                camera_id = file.split("\\")[-1].rstrip(NUMPY_FILE_EXT)
+                camera_id = str(file).split("\\")[-1].rstrip(NUMPY_FILE_EXT)
                 # read matrix
                 matrix = np.load(file)
 
@@ -56,7 +55,7 @@ class CoordinateTransformer:
 
         Parameters
         ----------
-        camera_id: np.ndarray
+        camera_id: str
             Camera that transformation should be applied for.
         camera_coords: np.ndarray
             Data in camera coordinates.
@@ -82,4 +81,4 @@ class CoordinateTransformer:
 
     def world_to_camera(self, camera_id: str, points: np.ndarray) -> np.ndarray:
         # no need
-        pass
+        return np.zeros(1)

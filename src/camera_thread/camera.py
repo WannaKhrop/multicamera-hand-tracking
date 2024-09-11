@@ -10,6 +10,7 @@ import cv2
 import pyrealsense2 as rs
 import numpy as np
 
+from pathlib import Path
 from utils.constants import PATH_TO_TRANSFORMATION, NUMPY_FILE_EXT, SCALE_FACTOR
 
 
@@ -45,7 +46,7 @@ class camera:
         Depth scale from closest to furthest point
     """
 
-    def __init__(self, device_name: str, device_id: int):
+    def __init__(self, device_name: str, device_id: str):
         """
         Initialize a new camera instance.
 
@@ -53,7 +54,7 @@ class camera:
         ----------
         device_name: str
             Name of a camera
-        device_id: int
+        device_id: str
             Unique ID of a camera
         """
         self.pipeline = rs.pipeline()
@@ -205,13 +206,13 @@ class camera:
             return [-10, -10, -10]
 
     @classmethod
-    def get_transformation_matrix(cls, camera_id: int) -> np.ndarray:
+    def get_transformation_matrix(cls, camera_id: str) -> np.ndarray:
         """
         Read transformation matrix for camera.
 
         Parameters
         ----------
-        camera_id: int
+        camera_id: str
             Camera ID that transformation matrix must be read for.
 
         Returns
@@ -220,7 +221,11 @@ class camera:
             Tranformation matrix from camera coordinates to world coordinates [R|t].
         """
         # read file
-        file_path = PATH_TO_TRANSFORMATION + str(camera_id) + NUMPY_FILE_EXT
+        file_path = (
+            Path(__file__)
+            .parent.parent.parent.joinpath(PATH_TO_TRANSFORMATION)
+            .joinpath(camera_id + NUMPY_FILE_EXT)
+        )
 
         try:
             matrix = np.load(file=file_path)
@@ -237,3 +242,5 @@ class camera:
             print(f"Unexpected end of file: {file_path}")
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
+
+        return np.zeros(1)

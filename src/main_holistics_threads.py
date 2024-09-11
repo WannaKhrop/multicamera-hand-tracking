@@ -4,13 +4,14 @@ from camera_thread.rs_thread import CameraThreadRS
 # in case of saving images
 from collections import deque
 from time import time, sleep
+import pandas as pd
 
 # event to stop threads
 from threading import Event
 import warnings
 
 # functions to process images
-from hand_recognition.hand_recognizer import draw_hand_animated
+from hand_recognition.hand_recognizer import draw_hand_animated_plotly
 from utils.utils import merge_sorted_lists
 from utils.fusion import DataMerger
 from utils.constants import TIME_DELTA
@@ -26,7 +27,7 @@ def main():
 
     # define events and data
     close_threads = Event()
-    results = dict()
+    results: dict[str, deque[tuple[int, str, dict[str, pd.DataFrame]]]] = dict()
     threads: dict[str, CameraThreadRS] = dict()
 
     for camera_name, camera_id in available_cameras:
@@ -37,7 +38,6 @@ def main():
             camera_id,
             close_threads,
             results[camera_id],
-            process_images=True,
             use_holistics=True,
         )
 
@@ -65,10 +65,10 @@ def main():
             break
 
     # gather results from all threads and store them in one list
-    all_frames = list()
+    all_frames: list[tuple[int, str, dict[str, pd.DataFrame]]] = list()
     start_time = time()
     for camera_id in results:
-        all_frames = merge_sorted_lists(all_frames, results[camera_id])
+        all_frames = list(merge_sorted_lists(all_frames, results[camera_id]))
     print(f"Merging all results = {round(time() - start_time, 3)} sec.")
 
     # process close timestamps in time
@@ -87,11 +87,11 @@ def main():
         if "Left" in hands:
             final_result_left.append((timestamp, hands["Left"]))
 
-    draw_hand_animated(final_result_right)
+    draw_hand_animated_plotly(final_result_right)
 
 
 if __name__ == "__main__":
-    warnings.filterwarnings(
-        "ignore", category=UserWarning, module="google.protobuf.symbol_database"
-    )
+    # ignore the following warnings
+    warnings.filterwarnings("ignore", category=UserWarning)
+
     main()

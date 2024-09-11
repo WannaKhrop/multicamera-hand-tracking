@@ -5,8 +5,10 @@ Author: Ivan Khrop
 Date: 21.07.2024
 """
 import numpy as np
+import pandas as pd
 import cv2
 import pyrealsense2 as rs
+from typing import Iterable, Sequence
 from collections import deque
 
 from utils.constants import (
@@ -17,15 +19,15 @@ from utils.constants import (
 
 
 def merge_sorted_lists(
-    list1: deque[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]],
-    list2: deque[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]],
-) -> list[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]]:
+    list1: Iterable[tuple[int, str, dict[str, pd.DataFrame]]],
+    list2: Iterable[tuple[int, str, dict[str, pd.DataFrame]]],
+) -> Iterable[tuple[int, str, dict[str, pd.DataFrame]]]:
     """
     Merge two sorted lists according to timestamps in one sequence
 
     Parameters
     ----------
-    list1: deque[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]]
+    list1: Ier[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]]
         First list to be merged. Each element is (timestamp, camera_id, frame, depth_frame, intrinsics)
     list2: deque[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]]
         Second list to be merged. Each element is (timestamp, camera_id, frame, depth_frame, intrinsics)
@@ -40,6 +42,9 @@ def merge_sorted_lists(
     i: int = 0  # type: ignore
     j: int = 0  # type: ignore
     merged_list = []
+
+    list1 = list(list1)
+    list2 = list(list2)
 
     # Loop until one of the lists is exhausted
     while i < len(list1) and j < len(list2):
@@ -190,7 +195,7 @@ def softmax(data: np.ndarray, temperature: float = 1.0) -> np.ndarray:
 
 
 def make_video(
-    frames: deque[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]],
+    frames: Iterable[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]],
 ):
     """
     Create video from frames.
@@ -199,14 +204,14 @@ def make_video(
     ----------
     frames: deque[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]]
     """
+    frames = deque(frames)
     if len(frames) == 0:
         return
 
-    video_name = PATH_TO_VIDEOS + frames[0][1] + ".avi"
-    codec = cv2.VideoWriter_fourcc(*"XVID")
-    video = cv2.VideoWriter(
-        video_name, codec, 20, (CAMERA_RESOLUTION_WIDTH, CAMERA_RESOLUTION_HEIGHT)
-    )
+    video_name: str = str(PATH_TO_VIDEOS.joinpath(frames[0][1] + ".avi"))
+    codec = cv2.VideoWriter.fourcc(*"XVID")
+    size: Sequence[int] = (CAMERA_RESOLUTION_WIDTH, CAMERA_RESOLUTION_HEIGHT)
+    video = cv2.VideoWriter(filename=video_name, fourcc=codec, fps=20.0, frameSize=size)
 
     for _, _, frame, _, _ in frames:
         video.write(frame)

@@ -362,9 +362,6 @@ def assign_visability(df_landmarks: pd.DataFrame):
     df_landmarks: pd.DataFrame
         Landmarks in DataFrame format with columns: index, x, y, z
     """
-    # sort landmarks by z coordinate
-    df_landmarks_sorted = df_landmarks.sort_values(by="z", ascending=True)
-
     # camera vector
     camera_vector = np.array([0.0, 0.0, -1.0])
 
@@ -372,41 +369,54 @@ def assign_visability(df_landmarks: pd.DataFrame):
     palm_plane = find_palm_plane(df_landmarks.loc[palm_landmarks])
     palm_poligon = construct_palm_polygon(df_landmarks.loc[palm_landmarks], palm_plane)
 
+    """
+    # all connections
+    starts = np.array([df_landmarks.loc[p_idx_1].values for p_idx_1, _ in finger_connections])
+    ends = np.array([df_landmarks.loc[p_idx_2].values for _, p_idx_2 in finger_connections])
+    fingers_vectors = (ends - starts).T
+    fingers_vectors /= np.linalg.norm(fingers_vectors, axis=0)
+    
+    # to numpy
+    landmarks = df_landmarks.values
+
+    # project to line
+    projection_lengths = np.dot(landmarks, fingers_vectors).reshape(1, -1, -1)
+    projection_lengths = np.transpose(projection_lengths, axes=(1, 0, 2))
+
+    # for each landmark make projection
+    fingers_vectors = fingers_vectors.reshape(1, -1, -1)
+    projection_points = starts + fingers_vectors * projection_lengths
+    projection_vectors = projection_points - landmarks.T.reshape(1, -1, -1)
+    projection_vectors = np.transpose(projection_vectors, axes=(0, 2, 1))
+
+    # cosines + visibilities
+    cosine_values = np.matmul(projection_vectors, camera_vector)
+    visibilities = np.min(1.0 - cosine_values, axis=(1, 2))
+
+    # plm projections
+    """
+
     visibility_dict = dict()
     # go over all landmarks
-    for idx in df_landmarks_sorted.index:
+    for idx in df_landmarks.index:
         # at the beginning we assume maximal visibility
         visibility = 1.0
 
         # go over all hand connections and check if this landmarks is hiiden by another finger
         for p_idx_1, p_idx_2 in finger_connections:
-            """
-            # if this landmark is a part of the segment => no need to check
-            if p_idx_1 == idx or p_idx_2 == idx:
-                continue
-
-            # if at least one point of the segment is further from camera => no need to check
-            if (
-                df_landmarks_sorted.loc[p_idx_1].z >= df_landmarks_sorted.loc[idx].z
-            ) and (df_landmarks_sorted.loc[p_idx_2].z >= df_landmarks_sorted.loc[idx].z):
-                continue
-            """
-
             projection_point = project_point_to_line(
-                point1=np.array(df_landmarks_sorted.loc[p_idx_1]),
-                point2=np.array(df_landmarks_sorted.loc[p_idx_2]),
-                target=np.array(df_landmarks_sorted.loc[idx]),
+                point1=np.array(df_landmarks.loc[p_idx_1]),
+                point2=np.array(df_landmarks.loc[p_idx_2]),
+                target=np.array(df_landmarks.loc[idx]),
             )
 
             # check if projection is actually clamped by two other landmarks
             if is_between(
-                point1=np.array(df_landmarks_sorted.loc[p_idx_1]),
-                point2=np.array(df_landmarks_sorted.loc[p_idx_2]),
+                point1=np.array(df_landmarks.loc[p_idx_1]),
+                point2=np.array(df_landmarks.loc[p_idx_2]),
                 target=projection_point,
             ):
-                projection_vector = projection_point - np.array(
-                    df_landmarks_sorted.loc[idx]
-                )
+                projection_vector = projection_point - np.array(df_landmarks.loc[idx])
 
                 cosine_value = cosine(projection_vector, camera_vector)
 
@@ -416,7 +426,7 @@ def assign_visability(df_landmarks: pd.DataFrame):
         if idx not in palm_landmarks:
             # check if a landmark is actually hidden by the palm
             palm_projection = project_point_to_plane(
-                palm_plane, np.array(df_landmarks_sorted.loc[idx])
+                palm_plane, np.array(df_landmarks.loc[idx])
             )
 
             # if projection point is inside of palm
@@ -425,7 +435,7 @@ def assign_visability(df_landmarks: pd.DataFrame):
             ):
                 # get a projections vector
                 palm_projection_vector = palm_projection - np.array(
-                    df_landmarks_sorted.loc[idx]
+                    df_landmarks.loc[idx]
                 )
 
                 cosine_value = cosine(palm_projection_vector, camera_vector)
@@ -435,9 +445,6 @@ def assign_visability(df_landmarks: pd.DataFrame):
 
     # store results
     df_landmarks["visibility"] = df_landmarks.index.map(visibility_dict)
-
-    # sort by index (HandLandmark id)
-    df_landmarks = df_landmarks.sort_index()
 
 
 def landmarks_fusion(

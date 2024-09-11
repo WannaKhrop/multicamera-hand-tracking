@@ -45,7 +45,6 @@ class CameraThreadRS(Thread):
         Thread.__init__(self)
         self.stop_thread = stop_thread
         self.sources = threads
-        self.landmarks_data = list()
 
     def is_source_empty(self):
         """Check if sources do not have any data to process and can not generate any data mode."""

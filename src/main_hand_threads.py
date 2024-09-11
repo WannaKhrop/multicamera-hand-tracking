@@ -15,6 +15,8 @@ from utils.utils import merge_sorted_lists
 from utils.fusion import DataMerger
 from utils.constants import TIME_DELTA
 
+import pandas as pd
+
 
 def main():
     # read available cameras
@@ -26,7 +28,7 @@ def main():
 
     # define events and data
     close_threads = Event()
-    results = dict()
+    results: dict[str, deque[tuple[int, str, dict[str, pd.DataFrame]]]] = dict()
     threads: dict[str, CameraThreadRS] = dict()
 
     for camera_name, camera_id in available_cameras:
@@ -37,7 +39,6 @@ def main():
             camera_id,
             close_threads,
             results[camera_id],
-            process_images=True,
             use_holistics=False,
         )
 
@@ -64,10 +65,10 @@ def main():
             break
 
     # gather results from all threads and store them in one list
-    all_frames = list()
+    all_frames: list[tuple[int, str, dict[str, pd.DataFrame]]] = list()
     start_time = time()
     for camera_id in results:
-        all_frames = merge_sorted_lists(all_frames, results[camera_id])
+        all_frames = list(merge_sorted_lists(all_frames, results[camera_id]))
     print(f"Merging all results = {round(time() - start_time, 3)} sec.")
 
     # process close timestamps in time

@@ -12,11 +12,11 @@ from utils.constants import PATH_TO_MODEL
 import numpy as np
 import pandas as pd
 import pyrealsense2 as rs
+from typing import Iterable
 
 # to process frames
-from hand_recognition.hand_recognizer import convert_to_camera_coordinates, hand_to_df
+from hand_recognition.hand_recognizer import convert_to_camera_coordinates
 from utils.coordinate_transformer import CoordinateTransformer
-from utils.geometry import assign_visability
 
 # define types
 BaseOptions = mp.tasks.BaseOptions
@@ -74,8 +74,10 @@ class Landmarker:
 
     def process_frames(
         self,
-        frames: list[tuple[int, int, np.array, np.array, rs.pyrealsense2.intrinsics]],
-    ) -> list[tuple[int, int, dict[str, pd.DataFrame]]]:
+        frames: Iterable[
+            tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]
+        ],
+    ) -> Iterable[tuple[int, str, dict[str, pd.DataFrame]]]:
         # define transformer
         transformer = CoordinateTransformer()
 
@@ -93,24 +95,12 @@ class Landmarker:
                 continue
 
             # assign convert to world coordinates and assign visibility to each frame
+            coords = ["x", "y", "z"]
             for hand in detected_hands:
                 # world coords
-                world_coords = transformer.camera_to_world(
-                    camera_id=camera_id, points=detected_hands[hand]
+                detected_hands[hand][coords] = transformer.camera_to_world(
+                    camera_id=camera_id, points=detected_hands[hand][coords].values
                 )
-                world_coords = hand_to_df(world_coords)
-
-                # convert to pd.DataFrame
-                detected_hands[hand] = hand_to_df(detected_hands[hand])
-
-                # assign visibility
-                assign_visability(df_landmarks=detected_hands[hand])
-
-                # save results
-                world_coords["visibility"] = detected_hands[hand].loc[
-                    world_coords.index, "visibility"
-                ]
-                detected_hands[hand] = world_coords
 
             # save detected results
             detected_results.append((timestamp, camera_id, detected_hands))

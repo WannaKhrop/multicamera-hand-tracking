@@ -8,15 +8,25 @@ Date: 06.08.2024
 # paths to different folders
 # assuming that modules main.py and find_transformation.py are running
 
+from pathlib import Path
+
 # PATH_TO_TRANSFORMATION = "..\\transformations\\"
-PATH_TO_TRANSFORMATION = "transformations\\"  # transformations
+PATH_TO_TRANSFORMATION = Path(__file__).parent.parent.parent.joinpath(
+    "transformations"
+)  # transformations
 
 # PATH_TO_MODEL = "..\\models\\hand_landmarker.task"
-PATH_TO_MODEL = "models\\hand_landmarker.task"  # path to model
+PATH_TO_MODEL = (
+    Path(__file__)
+    .parent.parent.parent.joinpath("models")
+    .joinpath("hand_landmarker.task")
+)  # path to model
 
-PATH_TO_DATA_FOLDER = "..\\data\\"  # path to data folder
+PATH_TO_DATA_FOLDER = Path(__file__).parent.parent.parent.joinpath(
+    "data"
+)  # path to data folder
 
-PATH_TO_VIDEOS = "..\\videos\\"
+PATH_TO_VIDEOS = Path(__file__).parent.parent.parent.joinpath("videos")
 
 # numpy format
 NUMPY_FILE_EXT = ".npy"
@@ -36,4 +46,4 @@ SOFTMAX_PARAM = 20.0
 # time delay parameter
 # each timestamp is time() * 1000.
 # TIME_DELTA defines time diffence in 1e-3 sec.
-TIME_DELTA = 10  # each 10 * 1e-3 sec.
+TIME_DELTA = 100  # each TIME_DELTA * 1e-3 sec.
