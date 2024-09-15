@@ -195,7 +195,9 @@ def softmax(data: np.ndarray, temperature: float = 1.0) -> np.ndarray:
 
 
 def make_video(
-    frames: Iterable[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]],
+    frames: Iterable[
+        tuple[int, str, np.ndarray, np.ndarray, rs.pyrealsense2.intrinsics]
+    ],
 ):
     """
     Create video from frames.

@@ -11,7 +11,7 @@ from threading import Event
 import warnings
 
 # functions to process images
-from hand_recognition.hand_recognizer import draw_hand_animated_plotly, draw_hand_animated
+from hand_recognition.hand_recognizer import draw_hand_animated_plotly
 from utils.utils import merge_sorted_lists
 from utils.fusion import DataMerger
 from utils.constants import TIME_DELTA
@@ -76,7 +76,6 @@ def main():
     start_time = time()
     # process each available frame
     for frame in all_frames:
-        print(frame[0], frame[1])
         data_merger.add_time_frame(*frame)
     print(f"Fusion = {round(time() - start_time, 3)} sec.")
 
@@ -88,11 +87,12 @@ def main():
         if "Left" in hands:
             final_result_left.append((timestamp, hands["Left"]))
 
-    draw_hand_animated(final_result_right)
+    draw_hand_animated_plotly(final_result_right)
 
 
 if __name__ == "__main__":
     # ignore the following warnings
     warnings.filterwarnings("ignore", category=UserWarning)
 
+    # run application
     main()

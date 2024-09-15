@@ -251,23 +251,9 @@ def draw_hand_animated_plotly(
 
     for frame_id in range(len(hand_landmarks)):
         landmarks = hand_landmarks[frame_id][1]  # get pd.DataFrame
-        plotted_landmarks = {}
+        plotted_landmarks = dict()
 
         fig = go.Figure()
-        fig.update_layout(
-            autosize=False,
-            width=2000,
-            height=2000,
-            scene=dict(
-                xaxis_title="X Axis",
-                yaxis_title="Y Axis",
-                zaxis_title="Z Axis",
-                xaxis=dict(range=(-1.5, 1.5), autorange=False),  # Set the x-axis limit
-                yaxis=dict(range=(-1.5, 1.5), autorange=False),  # Set the y-axis limit
-                zaxis=dict(range=(0.0, 2.0), autorange=False),  # Set the z-axis limit
-                camera=dict(eye=dict(x=azimuth / 10, y=elevation / 10, z=1.5)),
-            ),
-        )
 
         # Create scatter plot for landmarks
         scatter_data = go.Scatter3d(
@@ -277,7 +263,7 @@ def draw_hand_animated_plotly(
             mode="markers+text",
             text=[],
             textposition="top center",
-            marker=dict(size=5, color="black"),
+            marker=dict(size=3, color="black"),
         )
 
         for idx in landmarks.index:
@@ -302,9 +288,6 @@ def draw_hand_animated_plotly(
             start_idx, end_idx = connection
             key = (start_idx, end_idx)
             if not (0 <= start_idx < len(landmarks) and 0 <= end_idx < len(landmarks)):
-                continue
-
-            if landmarks.loc[start_idx].z < 1e-3 or landmarks.loc[end_idx].z < 1e-3:
                 continue
 
             if start_idx in plotted_landmarks and end_idx in plotted_landmarks:
@@ -340,8 +323,9 @@ def draw_hand_animated_plotly(
     # Update layout
     plt.update_layout(
         autosize=False,
-        width=500,
-        height=500,
+        width=800,
+        height=600,
+        showlegend=False,
         updatemenus=[
             dict(
                 type="buttons",
@@ -368,9 +352,12 @@ def draw_hand_animated_plotly(
             zaxis_title="Z Axis",
             xaxis=dict(range=(-0.5, 0.5), autorange=False),  # Set the x-axis limit
             yaxis=dict(range=(-0.5, 0.5), autorange=False),  # Set the y-axis limit
-            zaxis=dict(range=(0.0, 2.0), autorange=False),  # Set the z-axis limit
+            zaxis=dict(range=(0.0, 1.5), autorange=False),  # Set the z-axis limit
             camera=dict(eye=dict(x=azimuth / 10, y=elevation / 10, z=1.5)),
+            aspectmode="manual",  # Fixes the aspect ratio
+            aspectratio=dict(x=1, y=1, z=1),  # Ensures aspect ratio remains constant
         ),
+        margin=dict(l=0, r=0, t=0, b=0),
     )
 
     plt.show()
@@ -469,12 +456,9 @@ def change_origin(
 
 def get_depth_data_from_pixel(
     x: float, y: float, depth_frame: np.ndarray, intrinsics: rs.pyrealsense2.intrinsics
-) -> np.array:
+) -> np.ndarray:
     """
     Get camera coordinates for pixel (x, y).
-
-    This method also assigns visibility to each landmark.
-    Coordinates with small visibility are absolutely unreliable !!!
 
     Parameters
     ----------
@@ -496,6 +480,36 @@ def get_depth_data_from_pixel(
     x_pixel = int(x * CAMERA_RESOLUTION_WIDTH)
     y_pixel = int(y * CAMERA_RESOLUTION_HEIGHT)
     point = camera.get_camera_coordinates(x_pixel, y_pixel, depth_frame, intrinsics)
+
+    return point
+
+
+def get_data_from_pixel_depth(
+    x: float, y: float, depth: float, intrinsics: rs.pyrealsense2.intrinsics
+) -> np.ndarray:
+    """
+    Get camera coordinates for pixel (x, y) and depth.
+
+    Parameters
+    ----------
+    x: float
+        Normalized x-coordinate at the image.
+    y: float
+        Normalized y-coordinate at image.
+    depth: float
+        Depth data from image.
+    intrinsics: rs.pyrealsense2.intrinsics
+        Camera intrinsics parameters.
+
+    Returns
+    -------
+    np.array
+        Camera cordinates.
+    """
+    # identify pixels
+    x_pixel = int(x * CAMERA_RESOLUTION_WIDTH)
+    y_pixel = int(y * CAMERA_RESOLUTION_HEIGHT)
+    point = camera.get_coordinates_for_depth(x_pixel, y_pixel, depth, intrinsics)
 
     return point
 
@@ -527,6 +541,7 @@ def convert_hand_holistic(
     """
     # get normalized landmarks
     landmarks = hand_to_df(to_numpy_ndarray_holistics(holistic_landmarks))
+    landmarks_original = landmarks.copy()
 
     # visibility
     assign_visability(landmarks)
@@ -536,15 +551,15 @@ def convert_hand_holistic(
     closest_point_landmark_idx = 0
     dist = 99.0
 
-    # get coords
+    # get coordinates and identifz the closest point to the camera
     coords = ["x", "y", "z"]
     for idx in landmarks.index:
-        x, y = landmarks.loc[idx].x, landmarks.loc[idx].y
+        x, y = landmarks_original.loc[idx].x, landmarks_original.loc[idx].y
         landmarks.loc[idx, coords] = get_depth_data_from_pixel(
             x, y, depth_frame, intrinsics
         )
 
-        # if distance to camera is small, then we did not recognize this point => visibility = 0.0
+        # if distance to camera is small, then we did not recognize this point
         if landmarks.loc[idx, "z"] < dist and landmarks.loc[idx, "z"] > 1e-3:
             dist = landmarks.loc[idx, "z"]
             closest_point_landmark_idx = idx
@@ -561,7 +576,11 @@ def convert_hand_holistic(
     landmarks["z"] = real_depth
 
     # handle zeros where depth was missed
-    # landmarks[landmarks["visibility"] < 1e-3] = np.zeros(4)
+    # now we have assumption about depth and use it to correct coordinates
+    for idx in landmarks.index:
+        x, y = landmarks_original.loc[idx].x, landmarks_original.loc[idx].y
+        depth = landmarks.loc[idx].z
+        landmarks.loc[idx, coords] = get_data_from_pixel_depth(x, y, depth, intrinsics)
 
     return landmarks
 
@@ -576,8 +595,8 @@ def convert_to_camera_coordinates_holistic(
 
     Parameters
     ----------
-    color_frame: np.ndarray
-        Picture for hand detection.
+    mp_results: mp.tasks.vision.HolisticLandmarkerResult
+        Results of detection.
     depth_frame: np.ndarray
         Depth data from image.
     intrinsics: rs.pyrealsense2.intrinsics
@@ -685,7 +704,7 @@ def convert_to_camera_coordinates(
 
 def draw_landmarks_on_image(
     annotated_image: np.ndarray,
-    detection_result,  # type: ignore
+    detection_result,
 ):
     """
     Annotate image with detected landmarks.
@@ -750,7 +769,7 @@ def draw_landmarks_on_image(
 
 
 def draw_landmarks_holistics(
-    annotated_image: np.array,
+    annotated_image: np.ndarray,
     detection_result: list[NormalizedLandmark],  # type: ignore
 ):  # type: ignore
     """

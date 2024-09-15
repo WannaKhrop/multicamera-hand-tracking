@@ -5,7 +5,7 @@ Author: Ivan Khrop
 Date: 23.07.2024
 """
 # import basic libraries
-from threading import Thread, Event
+from threading import Thread, Event, Lock
 from time import time, sleep
 import pandas as pd
 import numpy as np
@@ -20,6 +20,7 @@ from collections import deque
 # models
 from hand_recognition.HolisticLandmarker import HolisticLandmarker
 from hand_recognition.Landmarker import Landmarker
+from utils.utils import make_video
 
 
 class CameraThreadRS(Thread):
@@ -34,13 +35,22 @@ class CameraThreadRS(Thread):
         ID of a camera that will take pictures for this thread
     close_event: Event
         Event to stop the thread
-    target: deque[tuple[int, int, np.array, np.array, rs.pyrealsense2.intrinsics]]
-        A place to save the result (timestamp, cameara_id, color_frame, depth_frame, intrinsics)
-    process_images: bool = False
-        If thread must process sequence of images itself.
+    target: deque[tuple[int, str, dict[str, pd.DataFrame]]]
+        A place to save the result (timestamp, cameara_id, Left and Right hands)
     use_holistics: bool = False
         If we need to use holisics model.
+    use_async: bool = False
+        If we use async processing in real time.
     """
+
+    camera_name: str
+    camera_id: str
+    close_event: Event
+    frames: deque[tuple[int, str, np.ndarray, np.ndarray, rs.pyrealsense2.intrinsics]]
+    target: deque[tuple[int, str, dict[str, pd.DataFrame]]]
+    use_holistics: bool
+    use_async: bool
+    locker: Lock
 
     def __init__(
         self,
@@ -49,24 +59,12 @@ class CameraThreadRS(Thread):
         close_event: Event,
         target: deque[tuple[int, str, dict[str, pd.DataFrame]]],
         use_holistics: bool = False,
+        use_async: bool = False,
     ):
-        """
-        Initialize a new instance of RS-Thread for a camera.
-
-        Parameters
-        ----------
-        camera_name: str
-        Name of a camera that will take pictures for this thread
-        camera_id: int
-            ID of a camera that will take pictures for this thread
-        close_event: Event
-            Event to stop the thread
-        target: deque[tuple[int, str, dict[str, pd.DataFrame]]]
-            A place to save the result (timestamp, color_frame, depth_frame, intrinsics)
-        use_holistics: bool = False
-            If we need to use holisics model.
-        """
+        """Initialize a new instance of RS-Thread for a camera."""
         Thread.__init__(self)
+
+        # init fields
         self.camera = camera(camera_name, camera_id)
         self.close_event = close_event
         self.frames: deque[
@@ -74,6 +72,10 @@ class CameraThreadRS(Thread):
         ] = deque()
         self.capture_target = target
         self.use_holistics = use_holistics
+        self.use_async = use_async
+
+        # init locker in case of multithreding
+        self.locker = Lock()
 
     def get_name(self) -> str:
         """
@@ -110,18 +112,18 @@ class CameraThreadRS(Thread):
             time_stamp = int(time() * 1000)
 
             # save the results of this frame
-            self.frames.append(
-                (
-                    time_stamp,
-                    self.camera.device_id,
-                    color_frame,
-                    depth_frame,
-                    intrinsics,
-                )
+            frame = (
+                time_stamp,
+                self.camera.device_id,
+                color_frame,
+                depth_frame,
+                intrinsics,
             )
 
+            self.add_new_frame(frame)
+
             # give time for other threads
-            sleep(0.005)
+            sleep(0.05)
 
             # if threads are stopped
             if self.close_event.is_set():
@@ -130,16 +132,39 @@ class CameraThreadRS(Thread):
         # stop camera
         self.camera.stop()
 
-        # define mode
-        if self.use_holistics:
-            holistic_landmarker = HolisticLandmarker()
-            processed = holistic_landmarker.process_frames(self.frames)
-        else:
-            landmarker = Landmarker()
-            processed = landmarker.process_frames(self.frames)
+        # if we use async, no need to check
+        if not self.use_async:
+            # define mode
+            if self.use_holistics:
+                holistic_landmarker = HolisticLandmarker()
+                processed = holistic_landmarker.process_frames(self.frames)
+            else:
+                landmarker = Landmarker()
+                processed = landmarker.process_frames(self.frames)
 
-        # store frames
-        self.capture_target.extend(processed)
+            # store frames
+            self.capture_target.extend(processed)
+
+    def make_video(self):
+        """Create video from frames."""
+        make_video(self.frames)
+
+    def add_new_frame(
+        self, frame: tuple[int, str, np.ndarray, np.ndarray, rs.pyrealsense2.intrinsics]
+    ):
+        """Put new frame in container."""
+        with self.locker:
+            self.frames.append(frame)
+
+    def get_frame(
+        self, idx
+    ) -> tuple[int, str, np.ndarray, np.ndarray, rs.pyrealsense2.intrinsics]:
+        """Return latest frame possible."""
+        with self.locker:
+            try:
+                return self.frames[idx]
+            except IndexError:
+                return self.frames[-1]
 
     @classmethod
     def returnCameraIndexes(cls) -> list[tuple[str, str]]:

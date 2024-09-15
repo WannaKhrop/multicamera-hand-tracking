@@ -134,8 +134,9 @@ class camera:
             self.color_frame.get_profile().as_video_stream_profile().get_intrinsics()
         )
 
-        imgRGB = np.asanyarray(self.color_frame.get_data())
+        imgRGB = np.asanyarray(self.color_frame.get_data()).copy()
         imgRGB = cv2.cvtColor(imgRGB, cv2.COLOR_BGR2RGB)
+        # camera.image_blue_to_gray(imgRGB)
 
         return imgRGB
 
@@ -158,7 +159,22 @@ class camera:
         -------
         rs.pyrealsense2.intrinsics
         """
-        return self.color_intrin
+        # Create a new intrinsics object
+        copied_intrinsics = rs.intrinsics()
+
+        # Manually copy all attributes from the original intrinsics object
+        copied_intrinsics.width = self.color_intrin.width
+        copied_intrinsics.height = self.color_intrin.height
+        copied_intrinsics.ppx = self.color_intrin.ppx
+        copied_intrinsics.ppy = self.color_intrin.ppy
+        copied_intrinsics.fx = self.color_intrin.fx
+        copied_intrinsics.fy = self.color_intrin.fy
+        copied_intrinsics.model = self.color_intrin.model
+        copied_intrinsics.coeffs = (
+            self.color_intrin.coeffs.copy()
+        )  # Coefficients array should be copied
+
+        return copied_intrinsics
 
     def get_depth_data_from_pixel(self, px, py):
         # depth_min = 0.11 #meter
@@ -194,16 +210,32 @@ class camera:
         y_pixel: int,
         depth_frame: np.ndarray,
         intrinsics: rs.pyrealsense2.intrinsics,
-    ):
+    ) -> np.ndarray:
         # need to check the coordinates of x and y
         try:
             depth = depth_frame[y_pixel, x_pixel] / SCALE_FACTOR
             dx, dy, dz = rs.rs2_deproject_pixel_to_point(
                 intrinsics, [x_pixel, y_pixel], depth
             )
-            return [dx, dy, dz]
+            return np.array([dx, dy, dz])
         except Exception:
-            return [-10, -10, -10]
+            return np.array([-10, -10, -10])
+
+    @classmethod
+    def get_coordinates_for_depth(
+        cls,
+        x_pixel: int,
+        y_pixel: int,
+        depth: float,
+        intrinsics: rs.pyrealsense2.intrinsics,
+    ) -> np.ndarray:
+        try:
+            dx, dy, dz = rs.rs2_deproject_pixel_to_point(
+                intrinsics, [x_pixel, y_pixel], depth
+            )
+            return np.array([dx, dy, dz])
+        except Exception:
+            return np.array([-10, -10, -10])
 
     @classmethod
     def get_transformation_matrix(cls, camera_id: str) -> np.ndarray:
@@ -244,3 +276,22 @@ class camera:
             print(f"An unexpected error occurred: {e}")
 
         return np.zeros(1)
+
+    @staticmethod
+    def image_blue_to_gray(image: np.ndarray):
+        """Convert blue color to gray at an image."""
+        # Convert the image to HSV color space (easier for color detection)
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+        # Define the blue color range in HSV
+        lower_blue = np.array([90, 50, 50])  # Lower bound for blue
+        upper_blue = np.array([130, 255, 255])  # Upper bound for blue
+
+        # Create a mask for the blue colors
+        mask = cv2.inRange(hsv, lower_blue, upper_blue)
+
+        # Define the new color (in BGR format, gray in this case)
+        new_color = np.array([128, 128, 128])  # BGR for gray
+
+        # Apply the new color where the mask is not zero
+        image[mask > 0] = new_color

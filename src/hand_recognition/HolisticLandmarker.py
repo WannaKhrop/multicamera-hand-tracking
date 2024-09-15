@@ -32,7 +32,6 @@ class HolisticLandmarker:
 
     def __init__(self, *args, **kwargs):
         """Create a new instance."""
-
         # usage of holistics solution
         model = mp.solutions.holistic.Holistic(
             static_image_mode=False,  # we process static images, not stream
@@ -65,7 +64,7 @@ class HolisticLandmarker:
     def process_frames(
         self,
         frames: Iterable[
-            tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]
+            tuple[int, str, np.ndarray, np.ndarray, rs.pyrealsense2.intrinsics]
         ],
     ) -> Iterable[tuple[int, str, dict[str, pd.DataFrame]]]:
         # define transformer

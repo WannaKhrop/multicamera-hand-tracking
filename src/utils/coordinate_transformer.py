@@ -22,7 +22,7 @@ class CoordinateTransformer:
     """
 
     # fields of transformer
-    transformations: dict[str, np.array]
+    transformations: dict[str, np.ndarray]
 
     def __new__(cls, *args, **kwargs):
         if not hasattr(cls, "_instance"):

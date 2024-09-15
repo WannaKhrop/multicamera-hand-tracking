@@ -30,15 +30,13 @@ def test_threads_rs():
         threads[camera_id].start()
 
     # sleep for a while
-    sleep(10)
+    sleep(20)
     close_threads.set()
 
     # check results
     number_of_cameras_used = 0
-    for camera_name, camera_id in arr:
+    for _, camera_id in arr:
         if len(threads[camera_id].frames) > 0:
             number_of_cameras_used += 1
 
     assert True
-
-test_threads_rs()
