@@ -15,7 +15,7 @@ from hand_recognition.hand_recognizer import (
     draw_landmarks_holistics,
 )
 from utils.coordinate_transformer import CoordinateTransformer
-from utils.utils import make_video
+from utils.utils import make_video, TimeChecker
 
 from typing import Iterable
 
@@ -43,6 +43,7 @@ class HolisticLandmarker:
 
         self.landmarker = model
 
+    @TimeChecker
     def process_image(
         self, image: np.ndarray
     ) -> mp.tasks.vision.HolisticLandmarkerResult:  # type: ignore
@@ -74,7 +75,7 @@ class HolisticLandmarker:
         detected_results = list()
         for timestamp, camera_id, color_frame, depth_frame, intrinsics in frames:
             # process image and get information
-            mp_results = self.process_image(color_frame)
+            mp_results = self.process_image(self, image=color_frame)
 
             draw_landmarks_holistics(color_frame, mp_results.left_hand_landmarks)
             draw_landmarks_holistics(color_frame, mp_results.right_hand_landmarks)

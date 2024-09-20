@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from typing import Callable
 
-from utils.utils import softmax
+from utils.utils import softmax, TimeChecker
 from matplotlib import pyplot as plt
 
 from hand_recognition.HandLandmarks import (
@@ -186,61 +186,6 @@ def project_point_to_plane(plane: np.ndarray, point: np.array) -> np.ndarray:
     return point - d * normal_vector_normalized
 
 
-def cosine(v1: np.ndarray, v2: np.ndarray) -> float:
-    """
-    Calculate cosine between two vectors.
-
-    Parameters
-    ----------
-    v1: np.ndarray
-        The first vector
-    v2: np.ndarray
-        The second vector
-
-    Returns
-    -------
-    float:
-        Cosine between two vectors
-    """
-    if abs(np.linalg.norm(v2)) < 1e-6 or abs(np.linalg.norm(v1)) < 1e-6:
-        return 0.0
-
-    cosine = np.dot(v1, v2) / np.linalg.norm(v1) / np.linalg.norm(v2)
-    return cosine
-
-
-def is_between(point1: np.ndarray, point2: np.ndarray, target: np.ndarray):
-    """
-    Check if target point is located between point1 and point2.
-
-    Parameters
-    ----------
-    point1: np.ndarray
-        First point of the line
-    point2: np.ndarray
-        Second point of the line
-    target: np.ndarray
-        Point that must be projected
-
-    Returns:
-    bool:
-        Returns True is target is located between two points
-        Otherwise, returns False
-    """
-    # check conditions for two possible cases
-    cond1 = point1[0] <= target[0] and target[0] <= point2[0]
-    cond2 = point1[1] <= target[1] and target[1] <= point2[1]
-    cond3 = point1[2] <= target[2] and target[2] <= point2[2]
-
-    cond1_rev = point2[0] <= target[0] and target[0] <= point1[0]
-    cond2_rev = point2[1] <= target[1] and target[1] <= point1[1]
-    cond3_rev = point2[2] <= target[2] and target[2] <= point1[2]
-
-    result = (cond1 and cond2 and cond3) or (cond1_rev and cond2_rev and cond3_rev)
-
-    return result
-
-
 def is_inside_palm(polygon: list[np.array], plane: np.array, point: np.array) -> bool:
     """
     Check if point is inside a poligon. All points of polygon belong to one plane !!!
@@ -352,7 +297,8 @@ def construct_palm_polygon(
     return polygon
 
 
-def assign_visability(df_landmarks: pd.DataFrame):
+@TimeChecker
+def assign_visibility(df_landmarks: pd.DataFrame):
     """
     Assign visability level to each finger landmark.
     This function adds an additional column "visibility" to the DataFrame
@@ -362,89 +308,127 @@ def assign_visability(df_landmarks: pd.DataFrame):
     df_landmarks: pd.DataFrame
         Landmarks in DataFrame format with columns: index, x, y, z
     """
-    # camera vector
-    camera_vector = np.array([0.0, 0.0, -1.0])
+    # Camera vector
+    camera_vector = np.array([0.0, 0.0, -1.0]).reshape(-1, 1)
 
-    # create polygon using palm landmarks
+    # Create polygon using palm landmarks
     palm_plane = find_palm_plane(df_landmarks.loc[palm_landmarks])
-    palm_poligon = construct_palm_polygon(df_landmarks.loc[palm_landmarks], palm_plane)
+    palm_polygon = construct_palm_polygon(df_landmarks.loc[palm_landmarks], palm_plane)
 
+    # Coordinates of all points
+    coords = ["x", "y", "z"]
+    all_points = df_landmarks[coords].values.T  # 3x21
+
+    # Initialize visibility array
+    visibility = np.ones(len(df_landmarks))  # 21,
+
+    # Vectorized line projection for finger connections
+    for p_idx_1, p_idx_2 in finger_connections:
+        point1 = df_landmarks.loc[p_idx_1, coords].values.reshape((-1, 1))  # 3x1
+        point2 = df_landmarks.loc[p_idx_2, coords].values.reshape((-1, 1))  # 3x1
+
+        # Calculate projections for all points
+        line_vector = point2 - point1  # 3x1 - 3x1 = 3x1
+        line_vector_normalized = line_vector / np.linalg.norm(
+            line_vector
+        )  # 3x1 / const = 3x1
+        vectors_to_points = all_points - point1  # 3x21 - 3x1 = 3x21 // broadcast
+        scales = np.dot(
+            vectors_to_points.T, line_vector_normalized
+        )  # 21x3 dot 3x1 = 21x1
+        projection_points = point1 + np.dot(
+            line_vector_normalized, scales.T
+        )  # 3x1 + 3x1 dot 1x21 = 3x21
+
+        # Check if projections are between points (clamping)
+        mask_between = is_between(point1, point2, projection_points)  # 21,
+
+        # Calculate projection vectors and process self projections
+        projection_vectors = projection_points - all_points  # 3x21 - 3x21 = 3x21
+        projection_vectors_norms = np.linalg.norm(
+            projection_vectors, axis=0, keepdims=True
+        )  # 1x21
+        projection_vectors_norms = np.where(
+            projection_vectors_norms > 1e-3, projection_vectors_norms, 1.0
+        )  # handle zero vectors to avoi division
+        projection_vectors /= projection_vectors_norms  # 3x21
+
+        cosines = np.squeeze(
+            np.dot(projection_vectors.T, camera_vector)
+        )  # 21x3 dot 3x1 = squeeze(21x1) = 21,
+
+        # Update visibility where projections are between
+        visibility[mask_between] = np.minimum(
+            visibility[mask_between], 1.0 - cosines[mask_between]
+        )
+
+    # Check palm occlusion for points not in palm landmarks
+    not_palm_mask = np.isin(df_landmarks.index, palm_landmarks, invert=True)  # 21,
+    palm_projections = np.array(
+        [
+            project_point_to_plane(palm_plane, landmark)
+            for landmark in all_points.T[not_palm_mask]
+        ]
+    )  # 21x3
+
+    inside_palm_mask = np.array(
+        [
+            is_inside_palm(palm_polygon, palm_plane, projection)
+            for projection in palm_projections
+        ],
+        dtype=bool,
+    )  # 21,
+    palm_projection_vectors = (
+        palm_projections[inside_palm_mask]
+        - all_points.T[not_palm_mask][inside_palm_mask]
+    )  # 21x3
+
+    cosines_palm = np.squeeze(
+        np.dot(palm_projection_vectors, camera_vector)
+    )  # 21x3 dot 3x1 = squeeze(21x1) = 21,
+
+    # Update visibility for palm occlusion
+    visibility[not_palm_mask][inside_palm_mask] = np.minimum(
+        visibility[not_palm_mask][inside_palm_mask], 1.0 - cosines_palm
+    )
+
+    # Store results
+    df_landmarks["visibility"] = visibility
+
+
+def is_between(point1, point2, target):
     """
-    # all connections
-    starts = np.array([df_landmarks.loc[p_idx_1].values for p_idx_1, _ in finger_connections])
-    ends = np.array([df_landmarks.loc[p_idx_2].values for _, p_idx_2 in finger_connections])
-    fingers_vectors = (ends - starts).T
-    fingers_vectors /= np.linalg.norm(fingers_vectors, axis=0)
-    
-    # to numpy
-    landmarks = df_landmarks.values
+    Check if target point is located between point1 and point2.
 
-    # project to line
-    projection_lengths = np.dot(landmarks, fingers_vectors).reshape(1, -1, -1)
-    projection_lengths = np.transpose(projection_lengths, axes=(1, 0, 2))
+    Parameters
+    ----------
+    point1: np.ndarray
+        First point of the line
+    point2: np.ndarray
+        Second point of the line
+    target: np.ndarray
+        Point that must be projected
 
-    # for each landmark make projection
-    fingers_vectors = fingers_vectors.reshape(1, -1, -1)
-    projection_points = starts + fingers_vectors * projection_lengths
-    projection_vectors = projection_points - landmarks.T.reshape(1, -1, -1)
-    projection_vectors = np.transpose(projection_vectors, axes=(0, 2, 1))
-
-    # cosines + visibilities
-    cosine_values = np.matmul(projection_vectors, camera_vector)
-    visibilities = np.min(1.0 - cosine_values, axis=(1, 2))
-
-    # plm projections
+    Returns:
+    bool:
+        Returns True is target is located between two points
+        Otherwise, returns False
     """
+    # Check for each dimension if the points are between the two landmarks
+    cond1 = np.logical_and(point1[0, 0] <= target[0], target[0] <= point2[0, 0])
+    cond2 = np.logical_and(point1[1, 0] <= target[1], target[1] <= point2[1, 0])
+    cond3 = np.logical_and(point1[2, 0] <= target[2], target[2] <= point2[2, 0])
 
-    visibility_dict = dict()
-    # go over all landmarks
-    for idx in df_landmarks.index:
-        # at the beginning we assume maximal visibility
-        visibility = 1.0
+    cond1_rev = np.logical_and(point2[0, 0] <= target[0], target[0] <= point1[0, 0])
+    cond2_rev = np.logical_and(point2[1, 0] <= target[1], target[1] <= point1[1, 0])
+    cond3_rev = np.logical_and(point2[2, 0] <= target[2], target[2] <= point1[2, 0])
 
-        # go over all hand connections and check if this landmarks is hiiden by another finger
-        for p_idx_1, p_idx_2 in finger_connections:
-            projection_point = project_point_to_line(
-                point1=np.array(df_landmarks.loc[p_idx_1]),
-                point2=np.array(df_landmarks.loc[p_idx_2]),
-                target=np.array(df_landmarks.loc[idx]),
-            )
+    result = np.logical_or(
+        np.logical_and(cond1, np.logical_and(cond2, cond3)),
+        np.logical_and(cond1_rev, np.logical_and(cond2_rev, cond3_rev)),
+    )
 
-            # check if projection is actually clamped by two other landmarks
-            if is_between(
-                point1=np.array(df_landmarks.loc[p_idx_1]),
-                point2=np.array(df_landmarks.loc[p_idx_2]),
-                target=projection_point,
-            ):
-                projection_vector = projection_point - np.array(df_landmarks.loc[idx])
-
-                cosine_value = cosine(projection_vector, camera_vector)
-
-                visibility = min(visibility, min(1.0, 1.0 - cosine_value))
-
-        # if it's a palm landmark then assign visibility = 1.0
-        if idx not in palm_landmarks:
-            # check if a landmark is actually hidden by the palm
-            palm_projection = project_point_to_plane(
-                palm_plane, np.array(df_landmarks.loc[idx])
-            )
-
-            # if projection point is inside of palm
-            if is_inside_palm(
-                polygon=palm_poligon, plane=palm_plane, point=palm_projection
-            ):
-                # get a projections vector
-                palm_projection_vector = palm_projection - np.array(
-                    df_landmarks.loc[idx]
-                )
-
-                cosine_value = cosine(palm_projection_vector, camera_vector)
-                visibility = min(visibility, min(1.0, 1.0 - cosine_value))
-
-        visibility_dict[idx] = visibility
-
-    # store results
-    df_landmarks["visibility"] = df_landmarks.index.map(visibility_dict)
+    return result
 
 
 def landmarks_fusion(

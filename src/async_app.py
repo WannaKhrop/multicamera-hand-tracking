@@ -60,7 +60,7 @@ app.layout = html.Div(
                 "align-items": "center",  # Center vertically
             },
         ),
-        dcc.Interval(id="interval-component", interval=1000, n_intervals=0),
+        dcc.Interval(id="interval-component", interval=75, n_intervals=0),
         html.Button("Start Threads", id="start-button", n_clicks=0),
         html.Button("Stop Threads", id="stop-button", n_clicks=0),
     ]
@@ -102,8 +102,8 @@ def stop_threads(n_clicks):
     if n_clicks > 0:
         close_threads.set()
         fusion_thread.join()
-        for camera_id in threads:
-            threads[camera_id].make_video()
+        # for camera_id in threads:
+        #    threads[camera_id].make_video()
     return n_clicks
 
 

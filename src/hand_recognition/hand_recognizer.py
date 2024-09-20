@@ -27,9 +27,11 @@ from hand_recognition.HandLandmarks import HandLandmark
 import pyrealsense2 as rs
 
 from utils.constants import CAMERA_RESOLUTION_HEIGHT, CAMERA_RESOLUTION_WIDTH
-from utils.geometry import assign_visability
+from utils.geometry import assign_visibility
+from utils.utils import TimeChecker
 
 
+@TimeChecker
 def draw_hand(
     hand_landmarks: list[NormalizedLandmark],  # type: ignore
     azimuth: int = 10,
@@ -107,6 +109,7 @@ def draw_hand(
     plt.show()
 
 
+@TimeChecker
 def draw_hand_animated(
     hand_landmarks: list[tuple[int, pd.DataFrame]],
     azimuth: int = 10,
@@ -221,6 +224,7 @@ def draw_hand_animated(
     plt.show()
 
 
+@TimeChecker
 def draw_hand_animated_plotly(
     hand_landmarks: list[tuple[int, pd.DataFrame]],
     azimuth: int = 10,
@@ -337,7 +341,7 @@ def draw_hand_animated_plotly(
                         args=[
                             None,
                             {
-                                "frame": {"duration": 50, "redraw": True},
+                                "frame": {"duration": 75, "redraw": True},
                                 "fromcurrent": True,
                             },
                         ],
@@ -544,7 +548,8 @@ def convert_hand_holistic(
     landmarks_original = landmarks.copy()
 
     # visibility
-    assign_visability(landmarks)
+    landmarks = hand_to_df(to_numpy_ndarray_holistics(holistic_landmarks))
+    assign_visibility(landmarks)
 
     # for future
     relative_depth = landmarks["z"].copy()
@@ -585,6 +590,7 @@ def convert_hand_holistic(
     return landmarks
 
 
+@TimeChecker
 def convert_to_camera_coordinates_holistic(
     mp_results: mp.tasks.vision.HolisticLandmarkerResult,  # type: ignore
     depth_frame: np.ndarray,
@@ -694,7 +700,7 @@ def convert_to_camera_coordinates(
         )
 
         # assign visibility
-        assign_visability(df_landmarks=landmarks)
+        assign_visibility(df_landmarks=landmarks)
 
         # save
         hands[name] = landmarks

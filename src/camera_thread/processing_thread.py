@@ -96,7 +96,9 @@ class FusionThread(Thread):
                 ) = self.pick_next_frame(source)
 
                 # process frame with mediapipe + annotate image
-                mp_results = self.landmarkers[source].process_image(color_frame)
+                mp_results = self.landmarkers[source].process_image(
+                    self.landmarkers[source], image=color_frame
+                )
                 # draw_landmarks_holistics(color_frame, mp_results.left_hand_landmarks)
                 # draw_landmarks_holistics(color_frame, mp_results.right_hand_landmarks)
 

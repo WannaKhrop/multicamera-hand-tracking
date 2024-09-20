@@ -10,12 +10,20 @@ import cv2
 import pyrealsense2 as rs
 from typing import Iterable, Sequence
 from collections import deque
+from time import time
+from threading import Lock
+from functools import wraps
+from typing import TypeVar, ParamSpec, Callable, Generic
 
 from utils.constants import (
     PATH_TO_VIDEOS,
     CAMERA_RESOLUTION_WIDTH,
     CAMERA_RESOLUTION_HEIGHT,
 )
+
+# for decorators
+F_Spec = ParamSpec("F_Spec")
+F_Return = TypeVar("F_Return")
 
 
 def merge_sorted_lists(
@@ -220,3 +228,71 @@ def make_video(
 
     cv2.destroyAllWindows()
     video.release()
+
+
+class TimeChecker(Generic[F_Spec, F_Return]):
+    """
+    Class represents a decorator to check average runtime of a decorated funciton.
+
+    Attributes
+    ----------
+    n_calls: int
+        Number of calls of a function.
+    total_time: float
+        Total time spent for running function.
+    call: Callable[F_Spec, F_Return]
+        Function that will be called.
+    """
+
+    n_calls: int
+    total_time: float
+    call: Callable[F_Spec, F_Return]
+
+    def __init__(self, call: Callable[F_Spec, F_Return]):
+        self.n_calls = 0
+        self.total_time = 0.0
+        self.call = call
+
+    def __call__(self, *args: F_Spec.args, **kwargs: F_Spec.kwargs) -> F_Return:
+        # add call counter
+        self.n_calls += 1
+        # start time, call function, save run time
+        start = time()
+        call_result = self.call(*args, **kwargs)
+        self.total_time += time() - start
+        # return result
+        return call_result
+
+    def __del__(self):
+        avg_time = round(self.total_time / self.n_calls, 3) if self.n_calls > 0 else 0.0
+        print(40 * "=")
+        print("Report for function:", self.call.__name__)
+        print("Total amount of calls:", self.n_calls)
+        print(f"Average time: {avg_time} sec.")
+        print(40 * "=")
+
+
+def thread_safe(call: Callable[F_Spec, F_Return]) -> Callable[F_Spec, F_Return]:
+    """
+    Decorator to create thread safe function calls for shared resources.
+
+    Parameters
+    ----------
+    call: Callable[F_Spec, F_Return]
+        Function that will be called.
+
+    Returns
+    -------
+    Callable[F_Spec, F_Return]
+        Wrapper for the call-function.
+    """
+    # create locker for thread safety
+    lock = Lock()
+
+    @wraps(call)
+    def wrapper(*args: F_Spec.args, **kwargs: F_Spec.kwargs) -> F_Return:
+        # wait utill locker is free to call the function
+        with lock:
+            return call(*args, **kwargs)
+
+    return wrapper
