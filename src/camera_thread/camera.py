@@ -238,6 +238,33 @@ class camera:
             return np.array([-10, -10, -10])
 
     @classmethod
+    def get_depth(cls, x_pixel: int, y_pixel: int, depth_frame: np.ndarray) -> float:
+        """
+        Get camera coordinates for pixel (x, y).
+
+        Parameters
+        ----------
+        x_pixel: int
+            X-pixel.
+        y_pixel: int
+            Y-pixel.
+        depth_frame: np.ndarray
+            Depth data from image.
+
+        Returns
+        -------
+        float
+            Depth data for pixel.
+        """
+        depth = 0.0
+        try:
+            depth = depth_frame[y_pixel, x_pixel] / SCALE_FACTOR
+        except Exception:
+            pass
+
+        return depth
+
+    @classmethod
     def get_transformation_matrix(cls, camera_id: str) -> np.ndarray:
         """
         Read transformation matrix for camera.

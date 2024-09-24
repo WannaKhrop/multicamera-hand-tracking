@@ -22,6 +22,15 @@ from camera_thread.processing_thread import FusionThread
 from utils.fusion import DataMerger
 from utils.constants import TIME_DELTA
 
+import tensorflow as tf
+
+tf.debugging.set_log_device_placement(True)
+
+# Check for available GPUs
+gpus = tf.config.list_physical_devices()
+print("Devices Available: ", gpus)
+exit()
+
 # Set up event and threads
 close_threads = Event()
 data_lock = Lock()

@@ -6,15 +6,19 @@ authors = ["Ivan Khrop <hrop.ivan@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.10,<3.12"
 thread = "^2.0.3"
-mediapipe = "^0.10.14"
 opencv-python = "^4.10.0.84"
 pyrealsense2 = "^2.55.1.6486"
 shapely = "^2.0.5"
 pandas = "^2.2.2"
 plotly = "^5.24.0"
 dash = "^2.18.1"
+six = "^1.16.0"
+mediapipe = "0.10.14"
+tensorflow-io-gcs-filesystem = "0.31.0"
+tensorflow = "2.12"
+scikit-learn = "^1.5.2"
 
 
 [tool.poetry.group.dev.dependencies]
