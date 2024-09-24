@@ -545,46 +545,42 @@ def convert_hand_holistic(
     """
     # get normalized landmarks
     landmarks = hand_to_df(to_numpy_ndarray_holistics(holistic_landmarks))
-    landmarks_original = landmarks.copy()
 
     # visibility
-    landmarks = hand_to_df(to_numpy_ndarray_holistics(holistic_landmarks))
     assign_visibility(landmarks)
 
     # for future
-    relative_depth = landmarks["z"].copy()
     closest_point_landmark_idx = 0
-    dist = 99.0
+    min_dist = 1e2
+
+    # !!! TODO !!!
+    # rewrite it with precise world coordinates calculation !!!
 
     # get coordinates and identifz the closest point to the camera
     coords = ["x", "y", "z"]
     for idx in landmarks.index:
-        x, y = landmarks_original.loc[idx].x, landmarks_original.loc[idx].y
-        landmarks.loc[idx, coords] = get_depth_data_from_pixel(
-            x, y, depth_frame, intrinsics
+        x, y = landmarks.loc[idx].x, landmarks.loc[idx].y
+        x_pixel = int(x * CAMERA_RESOLUTION_WIDTH)
+        y_pixel = int(y * CAMERA_RESOLUTION_HEIGHT)
+        depth = camera.get_depth(
+            x_pixel=x_pixel, y_pixel=y_pixel, depth_frame=depth_frame
         )
 
         # if distance to camera is small, then we did not recognize this point
-        if landmarks.loc[idx, "z"] < dist and landmarks.loc[idx, "z"] > 1e-3:
-            dist = landmarks.loc[idx, "z"]
-            closest_point_landmark_idx = idx
-
-    # get the closest point to the camera according to z-axis
-    closest_point_landmark = HandLandmark(closest_point_landmark_idx)
+        if depth < min_dist and depth > 1e-3:
+            min_dist, closest_point_landmark_idx = depth, idx
 
     # change origin and get relative depth_data
-    relative_depth = (
-        1.0 + relative_depth - relative_depth.values[closest_point_landmark.value]
+    landmarks.loc[:, "z"] = (
+        1.0 + landmarks.loc[:, "z"] - landmarks.loc[closest_point_landmark_idx, "z"]
     )
     # multiply with depth of the closest point
-    real_depth = relative_depth * landmarks.loc[closest_point_landmark.value, "z"]
-    landmarks["z"] = real_depth
+    landmarks.loc[:, "z"] = min_dist * landmarks.loc[:, "z"]
 
     # handle zeros where depth was missed
     # now we have assumption about depth and use it to correct coordinates
     for idx in landmarks.index:
-        x, y = landmarks_original.loc[idx].x, landmarks_original.loc[idx].y
-        depth = landmarks.loc[idx].z
+        x, y, depth = landmarks.loc[idx].x, landmarks.loc[idx].y, landmarks.loc[idx].z
         landmarks.loc[idx, coords] = get_data_from_pixel_depth(x, y, depth, intrinsics)
 
     return landmarks
