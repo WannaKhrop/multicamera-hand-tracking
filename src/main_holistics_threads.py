@@ -38,7 +38,6 @@ def main():
             camera_id,
             close_threads,
             results[camera_id],
-            use_holistics=True,
         )
 
         threads[camera_id] = thread

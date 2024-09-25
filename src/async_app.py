@@ -34,7 +34,6 @@ threads = {
         camera_id,
         close_threads,
         deque(),
-        use_holistics=True,
         use_async=True,
     )
     for camera_name, camera_id in available_cameras

@@ -19,7 +19,7 @@ from collections import deque
 
 # models
 from hand_recognition.HolisticLandmarker import HolisticLandmarker
-from hand_recognition.Landmarker import Landmarker
+from hand_recognition.hand_recognizer import convert_to_camera_coordinates_holistic
 from utils.utils import make_video
 
 
@@ -37,8 +37,6 @@ class CameraThreadRS(Thread):
         Event to stop the thread
     target: deque[tuple[int, str, dict[str, pd.DataFrame]]]
         A place to save the result (timestamp, cameara_id, Left and Right hands)
-    use_holistics: bool = False
-        If we need to use holisics model.
     use_async: bool = False
         If we use async processing in real time.
     """
@@ -48,7 +46,6 @@ class CameraThreadRS(Thread):
     close_event: Event
     frames: deque[tuple[int, str, np.ndarray, np.ndarray, rs.pyrealsense2.intrinsics]]
     target: deque[tuple[int, str, dict[str, pd.DataFrame]]]
-    use_holistics: bool
     use_async: bool
     locker: Lock
 
@@ -58,7 +55,6 @@ class CameraThreadRS(Thread):
         camera_id: str,
         close_event: Event,
         target: deque[tuple[int, str, dict[str, pd.DataFrame]]],
-        use_holistics: bool = False,
         use_async: bool = False,
     ):
         """Initialize a new instance of RS-Thread for a camera."""
@@ -70,8 +66,7 @@ class CameraThreadRS(Thread):
         self.frames: deque[
             tuple[int, str, np.ndarray, np.ndarray, rs.pyrealsense2.intrinsics]
         ] = deque()
-        self.capture_target = target
-        self.use_holistics = use_holistics
+        self.target = target
         self.use_async = use_async
 
         # init locker in case of multithreding
@@ -103,6 +98,10 @@ class CameraThreadRS(Thread):
         """
         Run the thread. Take pictures and save the results.
         """
+        # define landmarker
+        holistic_landmarker = HolisticLandmarker()
+
+        # start frames
         while True:
             # get data from picture
             color_frame = self.camera.take_picture_and_return_color()
@@ -111,16 +110,22 @@ class CameraThreadRS(Thread):
             # get time stamp
             time_stamp = int(time() * 1000)
 
-            # save the results of this frame
-            frame = (
-                time_stamp,
-                self.camera.device_id,
-                color_frame,
-                depth_frame,
-                intrinsics,
-            )
+            # self.add_new_frame(frame)
 
-            self.add_new_frame(frame)
+            if self.use_async:
+                # run mediapipe
+                mp_results = holistic_landmarker.process_image(
+                    holistic_landmarker, color_frame
+                )
+                # detect hands
+                detection_results = convert_to_camera_coordinates_holistic(
+                    mp_results, depth_frame, intrinsics
+                )
+                # if there is something, add it
+                if len(detection_results) > 0:
+                    self.add_new_frame(
+                        (time_stamp, self.camera.device_id, detection_results)
+                    )
 
             # give time for other threads
             sleep(0.05)
@@ -134,37 +139,33 @@ class CameraThreadRS(Thread):
 
         # if we use async, no need to check
         if not self.use_async:
-            # define mode
-            if self.use_holistics:
-                holistic_landmarker = HolisticLandmarker()
-                processed = holistic_landmarker.process_frames(self.frames)
-            else:
-                landmarker = Landmarker()
-                processed = landmarker.process_frames(self.frames)
+            processed = holistic_landmarker.process_frames(self.frames)
 
             # store frames
-            self.capture_target.extend(processed)
+            self.target.extend(processed)
 
     def make_video(self):
         """Create video from frames."""
         make_video(self.frames)
 
-    def add_new_frame(
-        self, frame: tuple[int, str, np.ndarray, np.ndarray, rs.pyrealsense2.intrinsics]
-    ):
+    def add_new_frame(self, frame: tuple[int, str, dict[str, pd.DataFrame]]):
         """Put new frame in container."""
         with self.locker:
-            self.frames.append(frame)
+            self.target.append(frame)
 
     def get_frame(
         self, idx
-    ) -> tuple[int, str, np.ndarray, np.ndarray, rs.pyrealsense2.intrinsics]:
+    ) -> tuple[int, str, dict[str, pd.DataFrame]] | tuple[None, None, None]:
         """Return latest frame possible."""
+
         with self.locker:
+            if len(self.target) == 0:
+                return None, None, None
+
             try:
-                return self.frames[idx]
+                return self.target[idx]
             except IndexError:
-                return self.frames[-1]
+                return self.target[-1]
 
     @classmethod
     def returnCameraIndexes(cls) -> list[tuple[str, str]]:
