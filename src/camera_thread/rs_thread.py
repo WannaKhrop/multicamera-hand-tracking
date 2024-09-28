@@ -7,16 +7,15 @@ Date: 23.07.2024
 # import basic libraries
 from threading import Thread, Event, Lock, Barrier, BrokenBarrierError
 from time import time
-import pandas as pd
 import numpy as np
 
 # realsense camera
 from camera_thread.camera import camera
 import pyrealsense2 as rs
+import mediapipe as mp
 
 # models
 from hand_recognition.HolisticLandmarker import HolisticLandmarker
-from hand_recognition.hand_recognizer import convert_to_camera_coordinates_holistic
 from utils.utils import make_video
 
 
@@ -32,7 +31,7 @@ class CameraThreadRS(Thread):
         ID of a camera that will take pictures for this thread
     close_event: Event
         Event to stop the thread
-    target: tuple[int, str, dict[str, pd.DataFrame]]
+    target: tuple[int, str, mp.tasks.vision.HolisticLandmarkerResult, np.ndarray, rs.pyrealsense2.intrinsics]
         A place to save the result (timestamp, cameara_id, Left and Right hands)
     lock: Lock
         A locker to controll multithread access to the target-attribute
@@ -42,7 +41,13 @@ class CameraThreadRS(Thread):
 
     close_event: Event
     frames: list[np.ndarray]
-    target: tuple[int, str, dict[str, pd.DataFrame]]
+    target: tuple[
+        int,
+        str,
+        mp.tasks.vision.HolisticLandmarkerResult,
+        np.ndarray,
+        rs.pyrealsense2.intrinsics,
+    ]  # type: ignore
     barrier: Barrier
     locker: Lock
 
@@ -69,7 +74,7 @@ class CameraThreadRS(Thread):
         holistic_landmarker = HolisticLandmarker()
 
         # start frames
-        while True:
+        while not self.close_event.is_set():
             # get data from picture
             color_frame = self.camera.take_picture_and_return_color()
             depth_frame = self.camera.get_last_depth_frame()
@@ -81,11 +86,6 @@ class CameraThreadRS(Thread):
             mp_results = holistic_landmarker.process_image(
                 holistic_landmarker, color_frame
             )
-            # detect hands
-            detection_results = convert_to_camera_coordinates_holistic(
-                mp_results, depth_frame, intrinsics
-            )
-
             # for debugging only !!!!
             """
             draw_landmarks_holistics(color_frame, mp_results.left_hand_landmarks)
@@ -102,14 +102,14 @@ class CameraThreadRS(Thread):
                 ), "Barrier broken, proceeding without synchronization is impossible."
 
             # if there is something, add it
-            if len(detection_results) > 0:
-                self.add_new_frame(
-                    (time_stamp, self.camera.device_id, detection_results)
+            with self.locker:
+                self.target = (
+                    time_stamp,
+                    self.camera.device_id,
+                    mp_results,
+                    depth_frame,
+                    intrinsics,
                 )
-
-            # if threads are stopped
-            if self.close_event.is_set():
-                break
 
         # stop camera
         self.camera.stop()
@@ -123,20 +123,26 @@ class CameraThreadRS(Thread):
         """Create video from frames."""
         make_video(name=self.camera.device_id, frames=self.frames)
 
-    def add_new_frame(self, frame: tuple[int, str, dict[str, pd.DataFrame]]):
-        """Put new frame in container."""
-        with self.locker:
-            self.target = frame
-
     def get_frame(
         self,
-    ) -> tuple[int, str, dict[str, pd.DataFrame]] | tuple[None, None, None]:
+    ) -> (
+        tuple[
+            int,
+            str,
+            mp.tasks.vision.HolisticLandmarkerResult,
+            np.ndarray,
+            rs.pyrealsense2.intrinsics,
+        ]
+        | tuple[None, None, None, None, None]
+    ):  # type: ignore
         """Return latest frame possible."""
         with self.locker:
             if hasattr(self, "target"):
-                return self.target
+                temp_value = self.target
+                self.target = None, None, None, None, None
+                return temp_value
             else:
-                return None, None, None
+                return None, None, None, None, None
 
     @classmethod
     def returnCameraIndexes(cls) -> list[tuple[str, str]]:

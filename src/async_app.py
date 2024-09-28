@@ -11,7 +11,7 @@ from time import sleep
 from dash import dcc, html
 from dash.dependencies import Input, Output
 import plotly.graph_objs as go
-from threading import Event, Lock, Barrier
+from threading import Event, Barrier
 import warnings
 
 # Own imports
@@ -27,7 +27,6 @@ available_cameras = CameraThreadRS.returnCameraIndexes()
 # Set up event and threads
 close_threads = Event()  # to close threads
 camera_barrier = Barrier(parties=len(available_cameras))
-data_lock = Lock()  # to controll access to the fusion results !!!
 
 # Camera threads initialization
 threads = {
@@ -111,46 +110,46 @@ def stop_threads(n_clicks):
 
 # Callback for updating the graph
 @app.callback(Output("3d-plot", "figure"), [Input("interval-component", "n_intervals")])
-def update_graph_live(n_intervals):
-    with data_lock:
-        if len(data_merger.fusion_results) == 0:
-            return go.Figure(layout=custom_layout)
+def update_graph_live(n_intervals: int):
+    if len(data_merger.fusion_results) == 0:
+        return go.Figure(layout=custom_layout)
 
-        _, hands = data_merger.fusion_results[-1]
+    _, hands = data_merger.fusion_results[-1]
 
     fig = go.Figure(layout=custom_layout)
+
+    print(list(hands.keys()))
 
     for hand in hands:
         landmarks = hands[hand]
         scatter_data = go.Scatter3d(
-            x=[landmarks.loc[idx].x for idx in landmarks.index],
-            y=[landmarks.loc[idx].y for idx in landmarks.index],
-            z=[landmarks.loc[idx].z for idx in landmarks.index],
+            x=landmarks.loc[:].x.values,
+            y=landmarks.loc[:].y.values,
+            z=landmarks.loc[:].z.values,
             mode="markers+text",
             text=[str(idx) for idx in landmarks.index],
             marker=dict(size=3, color="black"),
+            textfont=dict(size=6, color="blue"),
         )
         fig.add_trace(scatter_data)
 
         connections_x, connections_y, connections_z = [], [], []
-        for connection in solutions.hands.HAND_CONNECTIONS:
-            start_idx, end_idx = connection
-            if start_idx in landmarks.index and end_idx in landmarks.index:
-                connections_x += [
-                    landmarks.loc[start_idx].x,
-                    landmarks.loc[end_idx].x,
-                    None,
-                ]
-                connections_y += [
-                    landmarks.loc[start_idx].y,
-                    landmarks.loc[end_idx].y,
-                    None,
-                ]
-                connections_z += [
-                    landmarks.loc[start_idx].z,
-                    landmarks.loc[end_idx].z,
-                    None,
-                ]
+        for start_idx, end_idx in solutions.hands.HAND_CONNECTIONS:
+            connections_x += [
+                landmarks.loc[start_idx].x,
+                landmarks.loc[end_idx].x,
+                None,
+            ]
+            connections_y += [
+                landmarks.loc[start_idx].y,
+                landmarks.loc[end_idx].y,
+                None,
+            ]
+            connections_z += [
+                landmarks.loc[start_idx].z,
+                landmarks.loc[end_idx].z,
+                None,
+            ]
 
         fig.add_trace(
             go.Scatter3d(

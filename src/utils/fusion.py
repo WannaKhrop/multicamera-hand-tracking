@@ -82,9 +82,6 @@ class DataMerger:
 
     def make_fusion(self):
         """Make fusion for current state."""
-        # for each and make fusion
-        result = dict()
-
         # debug
         """
         for point in self.points:
@@ -94,6 +91,8 @@ class DataMerger:
 
         # go over all points and get the number of hands
         hands = set(["Left", "Right"])
+        # for each hand make fusion
+        result = dict()
 
         # for each hand make a fusion
         timestamp = 0

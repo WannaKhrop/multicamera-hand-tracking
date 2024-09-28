@@ -12,6 +12,7 @@ from time import sleep
 from camera_thread.rs_thread import CameraThreadRS
 from utils.coordinate_transformer import CoordinateTransformer
 from utils.fusion import DataMerger
+from hand_recognition.hand_recognizer import convert_to_camera_coordinates_holistic
 
 
 class FusionThread(Thread):
@@ -49,25 +50,32 @@ class FusionThread(Thread):
             # if there is a source with new data
             for source in self.sources:
                 # get frame
-                timestamp, _, detected_hands = self.sources[source].get_frame()
+                timestamp, _, mp_results, depth_frame, intrinsics = self.sources[
+                    source
+                ].get_frame()
 
                 # check if we have something
-                if timestamp is None or detected_hands is None:
-                    continue
-
-                # assign convert to world coordinates and assign visibility to each frame
-                axes = ["x", "y", "z"]
-                for hand in detected_hands:
-                    # world coords
-                    detected_hands[hand].loc[
-                        :, axes
-                    ] = self.transformer.camera_to_world(
-                        camera_id=source,
-                        points=detected_hands[hand].loc[:, axes].values,
+                if timestamp is not None:
+                    # detect hands
+                    detected_hands = convert_to_camera_coordinates_holistic(
+                        mp_results, depth_frame, intrinsics
                     )
 
-                # make fusion
-                self.merger.add_time_frame(timestamp, source, detected_hands)
+                    # if something is detected
+                    if len(detected_hands) > 0:
+                        # assign convert to world coordinates and assign visibility to each frame
+                        axes = ["x", "y", "z"]
+                        for hand in detected_hands:
+                            # world coords
+                            detected_hands[hand].loc[
+                                :, axes
+                            ] = self.transformer.camera_to_world(
+                                camera_id=source,
+                                points=detected_hands[hand].loc[:, axes].values,
+                            )
+
+                        # make fusion
+                        self.merger.add_time_frame(timestamp, source, detected_hands)
 
             # sleep a bit
-            sleep(0.055)
+            sleep(0.005)
