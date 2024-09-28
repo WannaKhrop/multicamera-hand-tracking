@@ -11,8 +11,7 @@ from time import sleep
 from dash import dcc, html
 from dash.dependencies import Input, Output
 import plotly.graph_objs as go
-from threading import Event, Lock
-from collections import deque
+from threading import Event, Lock, Barrier
 import warnings
 
 # Own imports
@@ -22,19 +21,21 @@ from camera_thread.processing_thread import FusionThread
 from utils.fusion import DataMerger
 from utils.constants import TIME_DELTA
 
+# get all cameras we have
+available_cameras = CameraThreadRS.returnCameraIndexes()
+
 # Set up event and threads
-close_threads = Event()
-data_lock = Lock()
+close_threads = Event()  # to close threads
+camera_barrier = Barrier(parties=len(available_cameras))
+data_lock = Lock()  # to controll access to the fusion results !!!
 
 # Camera threads initialization
-available_cameras = CameraThreadRS.returnCameraIndexes()
 threads = {
     camera_id: CameraThreadRS(
-        camera_name,
-        camera_id,
-        close_threads,
-        deque(),
-        use_async=True,
+        camera_name=camera_name,
+        camera_id=camera_id,
+        close_event=close_threads,
+        barrier=camera_barrier,
     )
     for camera_name, camera_id in available_cameras
 }
@@ -46,6 +47,8 @@ fusion_thread = FusionThread(
 
 # Dash app initialization
 app = dash.Dash(__name__)
+# do now show logging data
+app.enable_dev_tools(dev_tools_silence_routes_logging=True)
 
 # Layout
 app.layout = html.Div(
@@ -75,9 +78,9 @@ custom_layout = go.Layout(
         xaxis_title="X Axis",
         yaxis_title="Y Axis",
         zaxis_title="Z Axis",
-        xaxis=dict(range=(-0.3, 0.3), autorange=False),  # Set the x-axis limit
-        yaxis=dict(range=(-0.3, 0.3), autorange=False),  # Set the y-axis limit
-        zaxis=dict(range=(0.0, 0.5), autorange=False),  # Set the z-axis limit
+        xaxis=dict(range=(-1.0, 1.0), autorange=False),  # Set the x-axis limit
+        yaxis=dict(range=(-1.0, 1.0), autorange=False),  # Set the y-axis limit
+        zaxis=dict(range=(0.0, 1.5), autorange=False),  # Set the z-axis limit
         camera=dict(eye=dict(x=1.0, y=1.0, z=1.5)),
         aspectmode="manual",  # Fixes the aspect ratio
         aspectratio=dict(x=1, y=1, z=1),  # Ensures aspect ratio remains constant

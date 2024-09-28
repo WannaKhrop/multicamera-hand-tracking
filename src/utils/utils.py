@@ -7,9 +7,7 @@ Date: 21.07.2024
 import numpy as np
 import pandas as pd
 import cv2
-import pyrealsense2 as rs
 from typing import Iterable, Sequence
-from collections import deque
 from time import time
 from threading import Lock
 from functools import wraps
@@ -202,28 +200,23 @@ def softmax(data: np.ndarray, temperature: float = 1.0) -> np.ndarray:
     return softmax_matrix
 
 
-def make_video(
-    frames: Iterable[
-        tuple[int, str, np.ndarray, np.ndarray, rs.pyrealsense2.intrinsics]
-    ],
-):
+def make_video(name: str, frames: Iterable[np.ndarray]):
     """
     Create video from frames.
 
     Parameters
     ----------
-    frames: deque[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]]
+    frames: Iterable[np.array]
     """
-    frames = deque(frames)
     if len(frames) == 0:
         return
 
-    video_name: str = str(PATH_TO_VIDEOS.joinpath(frames[0][1] + ".avi"))
+    video_name: str = str(PATH_TO_VIDEOS.joinpath(name + ".avi"))
     codec = cv2.VideoWriter.fourcc(*"XVID")
     size: Sequence[int] = (CAMERA_RESOLUTION_WIDTH, CAMERA_RESOLUTION_HEIGHT)
     video = cv2.VideoWriter(filename=video_name, fourcc=codec, fps=20.0, frameSize=size)
 
-    for _, _, frame, _, _ in frames:
+    for frame in frames:
         video.write(frame)
 
     cv2.destroyAllWindows()

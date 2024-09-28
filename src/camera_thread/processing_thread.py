@@ -6,7 +6,6 @@ Data: 08.08.2024
 """
 # basic imports
 from threading import Thread, Event
-import pandas as pd
 from time import sleep
 
 # other imports
@@ -43,14 +42,6 @@ class FusionThread(Thread):
         self.sources = sources
         self.merger = merger
 
-    def pick_next_frame(
-        self, source: str
-    ) -> tuple[int, str, dict[str, pd.DataFrame]] | tuple[None, None, None]:
-        """Get next frame and move index."""
-        # always take the latest frame because we can not process all of them
-        # processing one frame takes a lot of time, so we process only the last one
-        return self.sources[source].get_frame(idx=-1)
-
     def run(self):
         """Run thread and process results."""
         # untill threads stopped
@@ -58,22 +49,25 @@ class FusionThread(Thread):
             # if there is a source with new data
             for source in self.sources:
                 # get frame
-                timestamp, _, detected_hands = self.sources[source].get_frame(idx=-1)
+                timestamp, _, detected_hands = self.sources[source].get_frame()
 
                 # check if we have something
                 if timestamp is None or detected_hands is None:
                     continue
 
                 # assign convert to world coordinates and assign visibility to each frame
-                axis = ["x", "y", "z"]
+                axes = ["x", "y", "z"]
                 for hand in detected_hands:
                     # world coords
-                    detected_hands[hand][axis] = self.transformer.camera_to_world(
-                        camera_id=source, points=detected_hands[hand][axis].values
+                    detected_hands[hand].loc[
+                        :, axes
+                    ] = self.transformer.camera_to_world(
+                        camera_id=source,
+                        points=detected_hands[hand].loc[:, axes].values,
                     )
 
                 # make fusion
                 self.merger.add_time_frame(timestamp, source, detected_hands)
 
             # sleep a bit
-            sleep(0.01)
+            sleep(0.055)

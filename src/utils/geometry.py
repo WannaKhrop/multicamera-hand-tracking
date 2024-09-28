@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from typing import Callable
 
-from utils.utils import softmax, TimeChecker
+from utils.utils import softmax, TimeChecker, thread_safe
 from matplotlib import pyplot as plt
 
 from hand_recognition.HandLandmarks import (
@@ -297,6 +297,7 @@ def construct_palm_polygon(
     return polygon
 
 
+@thread_safe
 @TimeChecker
 def assign_visibility(df_landmarks: pd.DataFrame):
     """
@@ -432,7 +433,7 @@ def is_between(point1, point2, target):
 
 
 def landmarks_fusion(
-    world_coordinates: list[pd.DataFrame], softmax_const: float = 20.0
+    world_coordinates: list[pd.DataFrame], softmax_const: float = 50.0
 ) -> pd.DataFrame:
     """
     Combine information from different cameras and get the resulting set of landmarks.
@@ -455,9 +456,9 @@ def landmarks_fusion(
 
     # get all the visibilities and matrixes
     visibilities = np.hstack(
-        [frame[vis].values.reshape(-1, 1) for frame in world_coordinates]
+        [frame.loc[:, vis].values.reshape(-1, 1) for frame in world_coordinates]
     )
-    matrixes = np.array([frame[[x, y, z]].values for frame in world_coordinates])
+    matrixes = np.array([frame.loc[:, [x, y, z]].values for frame in world_coordinates])
 
     # apply softmax and split results
     weights = softmax(data=visibilities, temperature=softmax_const)

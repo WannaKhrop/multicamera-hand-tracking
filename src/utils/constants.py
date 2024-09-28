@@ -46,4 +46,4 @@ SOFTMAX_PARAM = 50.0
 # time delay parameter
 # each timestamp is time() * 1000.
 # TIME_DELTA defines time diffence in 1e-3 sec.
-TIME_DELTA = 10  # each TIME_DELTA * 1e-3 sec.
+TIME_DELTA = 75  # each TIME_DELTA * 1e-3 sec.

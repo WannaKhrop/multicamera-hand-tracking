@@ -29,6 +29,7 @@ class DataMerger:
 
     time_delta: int
     points: deque[tuple[int, str, dict[str, pd.DataFrame]]]
+    unique_frames: set[tuple[int, str]]
     fusion_results: list[tuple[int, dict[str, pd.DataFrame]]]
 
     def __init__(self, time_delta: int):
@@ -38,6 +39,9 @@ class DataMerger:
 
         # to process data
         self.points = deque()
+
+        # unique frames
+        self.unique_frames = set()
 
         # resulting coordinates
         self.fusion_results = list()
@@ -57,25 +61,21 @@ class DataMerger:
         landmarks: dict[str, pd.DataFrame]
             Landmarks that were detected for each hand.
         """
-        # no frames = just add
-        if len(self.points) == 0:
-            self.points.append((timestamp, camera_id, landmarks))
-        # if it's early frame it can be added
-        elif (
-            timestamp < self.points[0][0]
-            and (self.points[0][0] - timestamp) <= self.time_delta
-        ):
-            self.points.append((timestamp, camera_id, landmarks))
-        # if there are some elemts, then check time difference
-        # clear container untill we do not have all frames close to the new one
-        elif timestamp - self.points[0][0] > self.time_delta:
-            self.points.append((timestamp, camera_id, landmarks))
-            self.clear_for_timestamp(timestamp=timestamp)
-        # if frame timestamp is fine
-        elif timestamp - self.points[0][0] <= self.time_delta:
-            self.points.append((timestamp, camera_id, landmarks))
-        else:
+        # check if we already have this frame
+        if (timestamp, camera_id) in self.unique_frames:
             return
+
+        # check if this frame is in the past
+        if len(self.points) > 0 and self.points[0][0] - timestamp > self.time_delta:
+            return
+
+        # add frame and update set and sort frames
+        self.points.append((timestamp, camera_id, landmarks))
+        self.unique_frames.add((timestamp, camera_id))
+        self.points = deque(sorted(self.points, key=lambda frame: frame[0]))
+
+        # adjust frames for fusion
+        self.clear_for_timestamp()
 
         # fusion
         self.make_fusion()
@@ -85,11 +85,15 @@ class DataMerger:
         # for each and make fusion
         result = dict()
 
+        # debug
+        """
+        for point in self.points:
+            print(point[0], point[1])
+        print(60 * "=")
+        """
+
         # go over all points and get the number of hands
-        hands = set()
-        for frame in self.points:
-            # gather all hand available
-            hands.update(list(frame[2].keys()))
+        hands = set(["Left", "Right"])
 
         # for each hand make a fusion
         timestamp = 0
@@ -98,35 +102,34 @@ class DataMerger:
             world_coordinates = list()
 
             # gather information from all the frames of different cameras
-            for frame in self.points:
-                if hand in frame[2]:
-                    timestamp = max(timestamp, frame[0])
-                    world_coordinates.append(frame[2][hand])
+            for frame_timestamp, _, frame in self.points:
+                if hand in frame:
+                    timestamp = max(timestamp, frame_timestamp)
+                    world_coordinates.append(frame[hand])
 
             # make fusion and save results
-            result[hand] = landmarks_fusion(
-                world_coordinates=world_coordinates, softmax_const=SOFTMAX_PARAM
-            )
+            if len(world_coordinates) > 0:
+                result[hand] = landmarks_fusion(
+                    world_coordinates=world_coordinates, softmax_const=SOFTMAX_PARAM
+                )
 
         # save the final result
         self.fusion_results.append((timestamp, result))
 
-    def clear_for_timestamp(self, timestamp: int):
-        """
-        Delete all elements untill all timestamps including a new one differ no more than time delay.
-
-        Parameters
-        ----------
-        timestamp: int
-            Point in time that must be satisfied.
-        """
+    def clear_for_timestamp(self):
+        """Delete all elements untill all timestamps differ no more than time delay."""
         while (
             len(self.points) > 0
-            and abs(timestamp - self.points[0][0]) > self.time_delta
+            and abs(self.points[-1][0] - self.points[0][0]) > self.time_delta
         ):
+            timestamp, camera_id, _ = self.points[0]
+
+            # remove frame and delete from set
             self.points.popleft()
+            self.unique_frames.remove((timestamp, camera_id))
 
     def clear(self):
         """Clear all internal fields."""
         self.points.clear()
+        self.unique_frames.clear()
         self.fusion_results.clear()

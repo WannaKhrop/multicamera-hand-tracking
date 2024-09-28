@@ -5,17 +5,14 @@ Author: Ivan Khrop
 Date: 23.07.2024
 """
 # import basic libraries
-from threading import Thread, Event, Lock
-from time import time, sleep
+from threading import Thread, Event, Lock, Barrier, BrokenBarrierError
+from time import time
 import pandas as pd
 import numpy as np
 
 # realsense camera
 from camera_thread.camera import camera
 import pyrealsense2 as rs
-
-# deque collection for frames
-from collections import deque
 
 # models
 from hand_recognition.HolisticLandmarker import HolisticLandmarker
@@ -35,64 +32,34 @@ class CameraThreadRS(Thread):
         ID of a camera that will take pictures for this thread
     close_event: Event
         Event to stop the thread
-    target: deque[tuple[int, str, dict[str, pd.DataFrame]]]
+    target: tuple[int, str, dict[str, pd.DataFrame]]
         A place to save the result (timestamp, cameara_id, Left and Right hands)
-    use_async: bool = False
-        If we use async processing in real time.
+    lock: Lock
+        A locker to controll multithread access to the target-attribute
+    barrier: Barrier
+        A barrier to force different cameras to work simutaneously
     """
 
-    camera_name: str
-    camera_id: str
     close_event: Event
-    frames: deque[tuple[int, str, np.ndarray, np.ndarray, rs.pyrealsense2.intrinsics]]
-    target: deque[tuple[int, str, dict[str, pd.DataFrame]]]
-    use_async: bool
+    frames: list[np.ndarray]
+    target: tuple[int, str, dict[str, pd.DataFrame]]
+    barrier: Barrier
     locker: Lock
 
     def __init__(
-        self,
-        camera_name: str,
-        camera_id: str,
-        close_event: Event,
-        target: deque[tuple[int, str, dict[str, pd.DataFrame]]],
-        use_async: bool = False,
+        self, camera_name: str, camera_id: str, close_event: Event, barrier: Barrier
     ):
         """Initialize a new instance of RS-Thread for a camera."""
         Thread.__init__(self)
 
         # init fields
         self.camera = camera(camera_name, camera_id)
-        self.close_event = close_event
-        self.frames: deque[
-            tuple[int, str, np.ndarray, np.ndarray, rs.pyrealsense2.intrinsics]
-        ] = deque()
-        self.target = target
-        self.use_async = use_async
+        self.frames = list()
 
-        # init locker in case of multithreding
+        # in case of multithreding
         self.locker = Lock()
-
-    def get_name(self) -> str:
-        """
-        Get the name of a thread.
-
-        Returns
-        -------
-        str:
-            Name of the current thread
-        """
-        return "Camera #{}".format(self.camera.device_id)
-
-    def get_camera(self) -> camera:
-        """
-        Get reference to the camera of this thread.
-
-        Returns
-        -------
-        camera:
-            Camera object that captured images for this thread
-        """
-        return self.camera
+        self.close_event = close_event
+        self.barrier = barrier
 
     def run(self):
         """
@@ -110,25 +77,35 @@ class CameraThreadRS(Thread):
             # get time stamp
             time_stamp = int(time() * 1000)
 
-            # self.add_new_frame(frame)
+            # run mediapipe
+            mp_results = holistic_landmarker.process_image(
+                holistic_landmarker, color_frame
+            )
+            # detect hands
+            detection_results = convert_to_camera_coordinates_holistic(
+                mp_results, depth_frame, intrinsics
+            )
 
-            if self.use_async:
-                # run mediapipe
-                mp_results = holistic_landmarker.process_image(
-                    holistic_landmarker, color_frame
-                )
-                # detect hands
-                detection_results = convert_to_camera_coordinates_holistic(
-                    mp_results, depth_frame, intrinsics
-                )
-                # if there is something, add it
-                if len(detection_results) > 0:
-                    self.add_new_frame(
-                        (time_stamp, self.camera.device_id, detection_results)
-                    )
+            # for debugging only !!!!
+            """
+            draw_landmarks_holistics(color_frame, mp_results.left_hand_landmarks)
+            draw_landmarks_holistics(color_frame, mp_results.right_hand_landmarks)
+            self.frames.append(color_frame)
+            """
 
-            # give time for other threads
-            sleep(0.05)
+            # give time for other threads but not to much
+            try:
+                self.barrier.wait(timeout=1.0)
+            except BrokenBarrierError:
+                assert (
+                    False
+                ), "Barrier broken, proceeding without synchronization is impossible."
+
+            # if there is something, add it
+            if len(detection_results) > 0:
+                self.add_new_frame(
+                    (time_stamp, self.camera.device_id, detection_results)
+                )
 
             # if threads are stopped
             if self.close_event.is_set():
@@ -137,35 +114,29 @@ class CameraThreadRS(Thread):
         # stop camera
         self.camera.stop()
 
-        # if we use async, no need to check
-        if not self.use_async:
-            processed = holistic_landmarker.process_frames(self.frames)
-
-            # store frames
-            self.target.extend(processed)
+        # for debugging only !!!!
+        """
+        self.make_video()
+        """
 
     def make_video(self):
         """Create video from frames."""
-        make_video(self.frames)
+        make_video(name=self.camera.device_id, frames=self.frames)
 
     def add_new_frame(self, frame: tuple[int, str, dict[str, pd.DataFrame]]):
         """Put new frame in container."""
         with self.locker:
-            self.target.append(frame)
+            self.target = frame
 
     def get_frame(
-        self, idx
+        self,
     ) -> tuple[int, str, dict[str, pd.DataFrame]] | tuple[None, None, None]:
         """Return latest frame possible."""
-
         with self.locker:
-            if len(self.target) == 0:
+            if hasattr(self, "target"):
+                return self.target
+            else:
                 return None, None, None
-
-            try:
-                return self.target[idx]
-            except IndexError:
-                return self.target[-1]
 
     @classmethod
     def returnCameraIndexes(cls) -> list[tuple[str, str]]:
