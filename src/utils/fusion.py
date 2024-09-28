@@ -6,6 +6,7 @@ Date: 09.08.2024
 """
 
 from collections import deque
+from threading import Lock
 import pandas as pd
 from utils.geometry import landmarks_fusion
 from utils.constants import SOFTMAX_PARAM
@@ -25,12 +26,15 @@ class DataMerger:
         Landmarks of different cameras [timestamp, camera_id, landmarks].
     fusion_results: list[tuple[int, dict[str, pd.DataFrame]]]
         Results of fusion (timestamp, landmarks).
+    locker: Lock
+        Locker to controll access.
     """
 
     time_delta: int
     points: deque[tuple[int, str, dict[str, pd.DataFrame]]]
     unique_frames: set[tuple[int, str]]
     fusion_results: list[tuple[int, dict[str, pd.DataFrame]]]
+    locker: Lock
 
     def __init__(self, time_delta: int):
         """Create a new instance."""
@@ -45,6 +49,9 @@ class DataMerger:
 
         # resulting coordinates
         self.fusion_results = list()
+
+        # locker
+        self.locker = Lock()
 
     def add_time_frame(
         self, timestamp: int, camera_id: str, landmarks: dict[str, pd.DataFrame]
@@ -61,24 +68,25 @@ class DataMerger:
         landmarks: dict[str, pd.DataFrame]
             Landmarks that were detected for each hand.
         """
-        # check if we already have this frame
-        if (timestamp, camera_id) in self.unique_frames:
-            return
+        with self.locker:
+            # check if we already have this frame
+            if (timestamp, camera_id) in self.unique_frames:
+                return
 
-        # check if this frame is in the past
-        if len(self.points) > 0 and self.points[0][0] - timestamp > self.time_delta:
-            return
+            # check if this frame is in the past
+            if len(self.points) > 0 and self.points[0][0] - timestamp > self.time_delta:
+                return
 
-        # add frame and update set and sort frames
-        self.points.append((timestamp, camera_id, landmarks))
-        self.unique_frames.add((timestamp, camera_id))
-        self.points = deque(sorted(self.points, key=lambda frame: frame[0]))
+            # add frame and update set and sort frames
+            self.points.append((timestamp, camera_id, landmarks))
+            self.unique_frames.add((timestamp, camera_id))
+            self.points = deque(sorted(self.points, key=lambda frame: frame[0]))
 
-        # adjust frames for fusion
-        self.clear_for_timestamp()
+            # adjust frames for fusion
+            self.clear_for_timestamp()
 
-        # fusion
-        self.make_fusion()
+            # fusion
+            self.make_fusion()
 
     def make_fusion(self):
         """Make fusion for current state."""
@@ -114,6 +122,16 @@ class DataMerger:
 
         # save the final result
         self.fusion_results.append((timestamp, result))
+
+    def get_latest_result(
+        self,
+    ) -> tuple[int, dict[str, pd.DataFrame]] | tuple[None, None]:
+        """Get the latest merger result."""
+        with self.locker:
+            if len(self.fusion_results) > 0:
+                return self.fusion_results[-1]
+            else:
+                return None, None
 
     def clear_for_timestamp(self):
         """Delete all elements untill all timestamps differ no more than time delay."""

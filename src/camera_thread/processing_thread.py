@@ -23,10 +23,10 @@ class FusionThread(Thread):
     ----------
     stop_thread: Event
         Event to stop all threads.
-    fusion_results: list[tuple[int, pd.DataFrame]]
-        Resulting world coordinates of all landmarks at timestamp.
     data_source: dict[int, deque[tuple[int, np.array, np.array, rs.pyrealsense2.intrinsics]]]
         Deques where data come from.
+    merger: DataMerger
+        Structure to merge frames from several cameras.
     """
 
     stop_thread: Event

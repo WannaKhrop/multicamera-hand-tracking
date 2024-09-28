@@ -111,14 +111,11 @@ def stop_threads(n_clicks):
 # Callback for updating the graph
 @app.callback(Output("3d-plot", "figure"), [Input("interval-component", "n_intervals")])
 def update_graph_live(n_intervals: int):
-    if len(data_merger.fusion_results) == 0:
+    _, hands = data_merger.get_latest_result()
+    if hands is None:
         return go.Figure(layout=custom_layout)
 
-    _, hands = data_merger.fusion_results[-1]
-
     fig = go.Figure(layout=custom_layout)
-
-    print(list(hands.keys()))
 
     for hand in hands:
         landmarks = hands[hand]

@@ -44,7 +44,7 @@ class CameraThreadRS(Thread):
     target: tuple[
         int,
         str,
-        mp.tasks.vision.HolisticLandmarkerResult,
+        mp.tasks.vision.HolisticLandmarkerResult,  # type: ignore
         np.ndarray,
         rs.pyrealsense2.intrinsics,
     ]  # type: ignore
@@ -129,7 +129,7 @@ class CameraThreadRS(Thread):
         tuple[
             int,
             str,
-            mp.tasks.vision.HolisticLandmarkerResult,
+            mp.tasks.vision.HolisticLandmarkerResult,  # type: ignore
             np.ndarray,
             rs.pyrealsense2.intrinsics,
         ]
