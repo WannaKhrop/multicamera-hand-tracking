@@ -7,9 +7,8 @@ Date: 27.07.2024
 """
 import numpy as np
 import pandas as pd
-from typing import Callable
 
-from utils.utils import softmax, TimeChecker
+from utils.utils import softmax, TimeChecker, thread_safe
 from matplotlib import pyplot as plt
 
 from hand_recognition.HandLandmarks import (
@@ -67,30 +66,6 @@ def draw_palm_polygon(polygon: list[np.array], point: np.array):
 
     # Show the plot
     plt.show()
-
-
-def define_line(point1: np.ndarray, point2: np.ndarray) -> Callable:
-    """
-    Defines a line in 3D space given two points.
-    point1, point2: numpy arrays that represent points in 3D space.
-    Returns a function representing the parametric form of the line.
-
-    Parameters
-    ----------
-    P1: np.ndarray
-        First point of the line
-    P2: np.ndarray
-        Second point of the line
-
-    Returns:
-    Callable[float]:
-        Function that gives a point of the line for parameter.
-    """
-
-    def line(t):
-        return point1 + t * (point2 - point1)
-
-    return line
 
 
 def project_point_to_line(
@@ -225,10 +200,6 @@ def is_inside_palm(polygon: list[np.array], plane: np.array, point: np.array) ->
 
     # if all the time we have the same oriented cross-product
     result = np.array(list_of_checks)
-    # print(result)
-    # draw data
-    # draw_palm_polygon(polygon, point)
-    # input("Check data")
 
     return (result > 0).all() or (result < 0).all()
 
@@ -297,6 +268,7 @@ def construct_palm_polygon(
     return polygon
 
 
+@thread_safe
 @TimeChecker
 def assign_visibility(df_landmarks: pd.DataFrame):
     """
@@ -432,7 +404,7 @@ def is_between(point1, point2, target):
 
 
 def landmarks_fusion(
-    world_coordinates: list[pd.DataFrame], softmax_const: float = 20.0
+    world_coordinates: list[pd.DataFrame], softmax_const: float = 50.0
 ) -> pd.DataFrame:
     """
     Combine information from different cameras and get the resulting set of landmarks.
@@ -455,9 +427,9 @@ def landmarks_fusion(
 
     # get all the visibilities and matrixes
     visibilities = np.hstack(
-        [frame[vis].values.reshape(-1, 1) for frame in world_coordinates]
+        [frame.loc[:, vis].values.reshape(-1, 1) for frame in world_coordinates]
     )
-    matrixes = np.array([frame[[x, y, z]].values for frame in world_coordinates])
+    matrixes = np.array([frame.loc[:, [x, y, z]].values for frame in world_coordinates])
 
     # apply softmax and split results
     weights = softmax(data=visibilities, temperature=softmax_const)

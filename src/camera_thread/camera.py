@@ -21,29 +21,29 @@ class camera:
     Attributes
     ----------
     pipeline: rs.pipeline
-        !!! TODO !!!
+        Camera main structure.
     config: rs.config
-        Configuration of a camera
+        Configuration of a camera.
     device_name: str
-        Name of a camera
+        Name of a camera.
     device_id: int
-        Unique ID of a camera
+        Unique ID of a camera.
     pipeline_started: bool
-        Flag that the camera started taking frames
+        Flag that the camera started taking frames.
     intrinsics_saved: bool
-        Flag that intrinsics parameters are saved
+        Flag that intrinsics parameters are saved.
     aling: !!! TODO !!!
-        Color alignment
+        Color alignment.
     depth_frame: !!! TODO !!!
-        Frame that contains depth for each pixel
+        Frame that contains depth for each pixel.
     color_frame: !!! TODO !!!
-        A colored picture taken
+        A colored picture taken.
     depth_intrin: !!! TODO !!!
-        Intrinsics parameters for depth frame
+        Intrinsics parameters for depth frame.
     color_intrin: !!! TODO !!!
-        Intrinsics parametrers for color frame
+        Intrinsics parametrers for color frame.
     depth_scale: !!! TODO !!!
-        Depth scale from closest to furthest point
+        Depth scale from closest to furthest point.
     """
 
     def __init__(self, device_name: str, device_id: str):
@@ -136,7 +136,6 @@ class camera:
 
         imgRGB = np.asanyarray(self.color_frame.get_data()).copy()
         imgRGB = cv2.cvtColor(imgRGB, cv2.COLOR_BGR2RGB)
-        # camera.image_blue_to_gray(imgRGB)
 
         return imgRGB
 
@@ -303,22 +302,3 @@ class camera:
             print(f"An unexpected error occurred: {e}")
 
         return np.zeros(1)
-
-    @staticmethod
-    def image_blue_to_gray(image: np.ndarray):
-        """Convert blue color to gray at an image."""
-        # Convert the image to HSV color space (easier for color detection)
-        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-
-        # Define the blue color range in HSV
-        lower_blue = np.array([90, 50, 50])  # Lower bound for blue
-        upper_blue = np.array([130, 255, 255])  # Upper bound for blue
-
-        # Create a mask for the blue colors
-        mask = cv2.inRange(hsv, lower_blue, upper_blue)
-
-        # Define the new color (in BGR format, gray in this case)
-        new_color = np.array([128, 128, 128])  # BGR for gray
-
-        # Apply the new color where the mask is not zero
-        image[mask > 0] = new_color

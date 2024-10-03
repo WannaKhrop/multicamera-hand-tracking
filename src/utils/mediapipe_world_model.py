@@ -21,7 +21,9 @@ class MedapipeWorldTransformer:
         )
 
     @TimeChecker
-    def predict(self, features: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
+    def predict(
+        self, features: np.ndarray, shape: tuple[int, int] | tuple[int, ...]
+    ) -> np.ndarray:
         """
         Predict world coordinates.
 
@@ -36,6 +38,6 @@ class MedapipeWorldTransformer:
         np.ndarray
             Result as matrix [21x3].
         """
-        results = self.model.predict(features)
+        results = self.model.predict(features, verbose=0)
 
-        return results.reshape(shape)
+        return np.array(results.reshape(shape))
