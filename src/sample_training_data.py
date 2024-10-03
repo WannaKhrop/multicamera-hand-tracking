@@ -5,93 +5,75 @@ Author: Ivan Khrop
 Date: 24.09.2024
 """
 
-import mediapipe as mp
 import numpy as np
 import warnings
-from camera_thread.rs_thread import CameraThreadRS
-from utils.constants import PATH_TO_MODEL, PATH_TO_DATA_FOLDER
-
-# functions to process images
-from camera_thread.camera import camera
-from hand_recognition.hand_recognizer import to_numpy_ndarray
-
-# define types
-BaseOptions = mp.tasks.BaseOptions
-HandLandmarker = mp.tasks.vision.HandLandmarker
-HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
-VisionRunningMode = mp.tasks.vision.RunningMode
-
-# usage of hands - model !!!
-options = HandLandmarkerOptions(
-    base_options=BaseOptions(model_asset_path=PATH_TO_MODEL),
-    num_hands=2,
-    running_mode=VisionRunningMode.IMAGE,
-)
+from camera_thread.rs_ml_thread import MLCameraThreadRS
+from utils.constants import PATH_TO_DATA_FOLDER
+from threading import Event
+from utils.constants import PROB_PARAM_DISANCE, PROB_PARAM_ZERO
 
 
 def main():
     # read available cameras
-    available_cameras = CameraThreadRS.returnCameraIndexes()
+    available_cameras = MLCameraThreadRS.returnCameraIndexes()
     # check cameras
     assert (
         len(available_cameras) > 0
     ), "No cameras are available. Test can not be passed."
 
-    # define parts
-    my_cam = camera(available_cameras[0][0], available_cameras[0][1])
-    landmarker = HandLandmarker.create_from_options(options)
+    # define events and data
+    close_threads = Event()
+    threads: dict[str, MLCameraThreadRS] = dict()
 
-    data_in = list()
-    data_out = list()
+    for camera_name, camera_id in available_cameras:
+        threads[camera_id] = MLCameraThreadRS(camera_name, camera_id, close_threads)
 
+    # !!! TODO !!!
+    # add event to start threads
     input("Start capturing: ")
 
-    # define events and data
-    for _ in range(3000):
-        # get frame
-        color_frame = my_cam.take_picture_and_return_color()
-        depth_frame = my_cam.get_last_depth_frame()
-        height, width, _ = color_frame.shape
+    for camera_id in threads:
+        threads[camera_id].start()
 
-        # process frame
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=color_frame)
-        mp_results = landmarker.detect(mp_image)
+    # wait till the end
+    input("Input to interrupt all thread: ")
+    close_threads.set()
 
-        # get features and targets
-        for landmarks, world_landmarks in zip(
-            mp_results.hand_landmarks, mp_results.hand_world_landmarks
-        ):
-            landmarks = to_numpy_ndarray(landmarks)
-            depths: list[float] = list()
+    # collect data
+    data_in, data_out = list(), list()
+    for camera_id in threads:
+        features, targets = list(), list()
+        for elem_rel_depths, elem_depths in threads[camera_id].target:
+            # add clear data
+            targets.append(elem_depths)
 
-            # get depths
-            for landmark in landmarks:
-                x, y = landmark[0], landmark[1]
-                x_pixel = int(width * x)
-                y_pixel = int(y * height)
+            # corrupt depths a bit
+            corrupted_depths = elem_depths.copy()
+            corrupted_depths += np.random.normal(
+                loc=0.0, scale=0.005, size=corrupted_depths.shape
+            )
 
-                depths.append(
-                    camera.get_depth(
-                        x_pixel=x_pixel, y_pixel=y_pixel, depth_frame=depth_frame
-                    )
-                )
+            bernoulli_vector_dist = np.random.binomial(
+                n=1, p=PROB_PARAM_DISANCE, size=corrupted_depths.shape
+            )
+            corrupted_depths[bernoulli_vector_dist] += np.abs(
+                np.random.normal(loc=1.5, scale=2.0, size=corrupted_depths.shape)
+            )
 
-            column = np.array(depths).reshape(-1, 1)
+            bernoulli_vector_zero = np.random.binomial(
+                n=1, p=PROB_PARAM_ZERO, size=corrupted_depths.shape
+            )
+            corrupted_depths[bernoulli_vector_zero] = 0.0
 
-            # features and targets
-            features = np.hstack([landmarks, column]).reshape(-1)
-            features = np.hstack([features, np.array([height, width])])
-            world_landmarks = to_numpy_ndarray(world_landmarks)
+            # save corrupted
+            features.append(np.hstack([elem_rel_depths, corrupted_depths]))
 
-            # store them
-            data_in.append(features)
-            data_out.append(world_landmarks.reshape(-1))
-
-        print(40 * "=")
+        data_in.append(np.array(features))
+        data_out.append(np.array(targets))
 
     # make matrixes
-    data_x = np.array(data_in)
-    data_y = np.array(data_out)
+    data_x = np.vstack(data_in)
+    data_y = np.vstack(data_out)
 
     print(data_x.shape)
     print(data_y.shape)

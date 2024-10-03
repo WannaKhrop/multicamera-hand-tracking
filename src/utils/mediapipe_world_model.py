@@ -8,6 +8,7 @@ Date: 23.09.2024
 from keras.models import load_model, Sequential
 import numpy as np
 from utils.constants import PATH_TO_DNN_MODEL
+from utils.utils import TimeChecker, CustomLoss
 
 
 class MedapipeWorldTransformer:
@@ -15,8 +16,11 @@ class MedapipeWorldTransformer:
 
     def __init__(self):
         """Crea a new instance from file."""
-        self.model = load_model(filepath=PATH_TO_DNN_MODEL)
+        self.model = load_model(
+            filepath=PATH_TO_DNN_MODEL, custom_objects={"CustomLoss": CustomLoss}
+        )
 
+    @TimeChecker
     def predict(self, features: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
         """
         Predict world coordinates.

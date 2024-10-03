@@ -14,6 +14,8 @@ from time import time
 from threading import Lock
 from functools import wraps
 from typing import TypeVar, ParamSpec, Callable, Generic
+from keras import losses
+import tensorflow as tf
 
 from utils.constants import (
     PATH_TO_VIDEOS,
@@ -228,6 +230,21 @@ def make_video(
 
     cv2.destroyAllWindows()
     video.release()
+
+
+# class for custom loss function
+class CustomLoss(losses.Loss):
+    weight: float
+
+    def __init__(self, weight: float = 1.0, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.weight = weight
+
+    def call(self, y_true, y_pred):
+        mean = tf.reduce_mean(y_pred)
+        log_cosh_loss = tf.reduce_mean(tf.math.log(tf.math.cosh(y_pred - y_true)))
+
+        return log_cosh_loss + self.weight * tf.reduce_mean(tf.abs(y_pred - mean))
 
 
 class TimeChecker(Generic[F_Spec, F_Return]):

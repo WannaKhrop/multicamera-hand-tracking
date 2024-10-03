@@ -5,44 +5,34 @@ Author: Ivan Khrop
 Date: 24.09.2024
 """
 
-import mediapipe as mp
 import numpy as np
 import warnings
-from camera_thread.rs_thread import CameraThreadRS
-from utils.constants import PATH_TO_MODEL
+from camera_thread.rs_ml_thread import MLCameraThreadRS
 from time import sleep
 
 # functions to process images
 from camera_thread.camera import camera
-from hand_recognition.hand_recognizer import to_numpy_ndarray
+from hand_recognition.hand_recognizer import to_numpy_ndarray_holistics
 from utils.mediapipe_world_model import MedapipeWorldTransformer
-
-# define types
-BaseOptions = mp.tasks.BaseOptions
-HandLandmarker = mp.tasks.vision.HandLandmarker
-HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
-VisionRunningMode = mp.tasks.vision.RunningMode
-
-# usage of hands - model !!!
-options = HandLandmarkerOptions(
-    base_options=BaseOptions(model_asset_path=PATH_TO_MODEL),
-    num_hands=2,
-    running_mode=VisionRunningMode.IMAGE,
-)
+from hand_recognition.HolisticLandmarker import HolisticLandmarker
 
 
 def main():
     # read available cameras
-    available_cameras = CameraThreadRS.returnCameraIndexes()
+    available_cameras = MLCameraThreadRS.returnCameraIndexes()
     # check cameras
     assert (
         len(available_cameras) > 0
     ), "No cameras are available. Test can not be passed."
 
-    my_cam = camera(available_cameras[0][0], available_cameras[0][1])
-    landmarker = HandLandmarker.create_from_options(options)
+    print("Available cameras: ", list(enumerate(available_cameras)))
+    cam_id = int(input("Choose camera id: "))
+
+    my_cam = camera(available_cameras[cam_id][0], available_cameras[cam_id][1])
+    landmarker = HolisticLandmarker()
     transformer = MedapipeWorldTransformer()
 
+    sleep(1.0)
     input("Start capturing: ")
 
     # define events and data
@@ -50,45 +40,56 @@ def main():
         # get frame
         color_frame = my_cam.take_picture_and_return_color()
         depth_frame = my_cam.get_last_depth_frame()
-        height, width, _ = color_frame.shape
+        intrinsics = my_cam.get_last_intrinsics()
 
         # process frame
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=color_frame)
-        mp_results = landmarker.detect(mp_image)
+        mp_results = landmarker.process_image(landmarker, color_frame)
 
-        # check model
-        for landmarks, world_landmarks in zip(
-            mp_results.hand_landmarks, mp_results.hand_world_landmarks
-        ):
-            landmarks = to_numpy_ndarray(landmarks)
-            depths: list[float] = list()
+        # for each hand get depths and
+        if mp_results.left_hand_landmarks is not None:
+            landmarks = to_numpy_ndarray_holistics(mp_results.left_hand_landmarks)
+            # get depth data
+            rel_depths, depths = MLCameraThreadRS.process_hand(
+                landmarks, depth_frame, intrinsics
+            )
 
-            # get depths
-            for landmark in landmarks:
-                x, y = landmark[0], landmark[1]
-                x_pixel = int(width * x)
-                y_pixel = int(y * height)
+            if (depths > 1e-1).all():
+                # get features
+                features = np.hstack([rel_depths, depths]).reshape(1, -1)
+                # apply model
+                predictions = transformer.predict(
+                    transformer, features=features, shape=depths.shape
+                ).squeeze()
 
-                depths.append(
-                    camera.get_depth(
-                        x_pixel=x_pixel, y_pixel=y_pixel, depth_frame=depth_frame
-                    )
-                )
+                # compare
+                print("Difference: ", np.linalg.norm(predictions - depths))
+                print("Average difference: ", np.mean(predictions - depths))
+                print("Max difference: ", np.max(abs(predictions - depths)))
+                print("Predict: ", predictions)
+                print("Depths: ", depths)
 
-            column = np.array(depths).reshape(-1, 1)
+        # for each hand get depths and
+        if mp_results.right_hand_landmarks is not None:
+            landmarks = to_numpy_ndarray_holistics(mp_results.right_hand_landmarks)
+            # get depth data
+            rel_depths, depths = MLCameraThreadRS.process_hand(
+                landmarks, depth_frame, intrinsics
+            )
 
-            # get features
-            features = np.hstack([landmarks, column])
-            features = np.hstack([features, np.array([height, width])]).reshape(1, -1)
-            world_landmarks = to_numpy_ndarray(world_landmarks)
+            if (depths > 1e-1).all():
+                # get features
+                features = np.hstack([rel_depths, depths]).reshape(1, -1)
+                # apply model
+                predictions = transformer.predict(
+                    transformer, features=features, shape=depths.shape
+                ).squeeze()
 
-            # apply model
-            predictions = transformer.predict(features=features, shape=landmarks.shape)
-
-            # compare
-            print("Difference: ", np.linalg.norm(predictions - world_landmarks))
-            print("Average difference: ", np.mean(predictions - world_landmarks))
-            print("Max difference: ", np.max(abs(predictions - world_landmarks)))
+                # compare
+                print("Difference: ", np.linalg.norm(predictions - depths))
+                print("Average difference: ", np.mean(predictions - depths))
+                print("Max difference: ", np.max(abs(predictions - depths)))
+                print("Predict: ", predictions)
+                print("Depths: ", depths)
 
         print(40 * "=")
         sleep(1.0)

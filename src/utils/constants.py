@@ -53,3 +53,8 @@ SOFTMAX_PARAM = 50.0
 # each timestamp is time() * 1000.
 # TIME_DELTA defines time diffence in 1e-3 sec.
 TIME_DELTA = 10  # each TIME_DELTA * 1e-3 sec.
+
+# for ML data sampling
+PROB_PARAM_ZERO = 0.15
+PROB_PARAM_DISANCE = 0.05
+DISTACE_LIMIT = 0.25
