@@ -21,19 +21,16 @@ def create_model(in_shape: int, out_shape: int):
 
     # Hidden layers (you can adjust the number of layers and neurons)
     model.add(
-        layers.Dense(512, activation="tanh", kernel_regularizer=regularizers.l2(0.001))
+        layers.Dense(128, activation="tanh", kernel_regularizer=regularizers.l2(0.01))
     )  # Hidden layer 1
-    model.add(
-        layers.Dense(256, activation="tanh", kernel_regularizer=regularizers.l2(0.001))
-    )  # Hidden layer 2
 
     # Output layer
-    model.add(layers.Dense(out_shape))
-    model.add(layers.LeakyReLU(alpha=0.1))
+    model.add(layers.Dense(out_shape, kernel_regularizer=regularizers.l2(0.01)))
+    model.add(layers.LeakyReLU(alpha=0.2))
 
-    # Compile the model using MSE as the loss function
+    # Compile the model using MAE + LOGCOSH as the loss function
     model.compile(
-        optimizer="adam", loss=CustomLoss(weight=0.1), metrics=["mae", "logcosh"]
+        optimizer="adam", loss=CustomLoss(weight=0.7), metrics=["mae", "logcosh"]
     )
 
     return model
@@ -72,7 +69,7 @@ for fold, (train_idx, val_idx) in enumerate(kf.split(X)):
         X_train,
         y_train,
         validation_data=(X_val, y_val),
-        epochs=35,
+        epochs=10,
         batch_size=16,
         verbose=1,
     )
@@ -90,5 +87,5 @@ print(f"Cross-Validation results: Mean MAE = {mean_mae}, Std MAE = {std_mae}")
 
 # Create a new instance of the model
 model = create_model(in_shape=X.shape[1], out_shape=y.shape[1])
-model.fit(X, y, epochs=50, batch_size=16, verbose=1, shuffle=True)
+model.fit(X, y, epochs=15, batch_size=16, verbose=1, shuffle=True)
 model.save(PATH_TO_DNN_MODEL)

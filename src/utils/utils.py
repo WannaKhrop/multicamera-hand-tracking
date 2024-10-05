@@ -231,6 +231,7 @@ class CustomLoss(losses.Loss):
 
     def __init__(self, weight: float = 1.0, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        assert 0.0 <= weight <= 1.0, "Wrong value for weight"
         self.weight = weight
 
     def call(self, y_true, y_pred):

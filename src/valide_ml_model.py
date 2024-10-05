@@ -63,7 +63,7 @@ def main():
 
                 # compare
                 print("Difference: ", np.linalg.norm(predictions - depths))
-                print("Average difference: ", np.mean(predictions - depths))
+                print("Average difference: ", np.mean(abs(predictions - depths)))
                 print("Max difference: ", np.max(abs(predictions - depths)))
                 print("Predict: ", predictions)
                 print("Depths: ", depths)
@@ -86,7 +86,7 @@ def main():
 
                 # compare
                 print("Difference: ", np.linalg.norm(predictions - depths))
-                print("Average difference: ", np.mean(predictions - depths))
+                print("Average difference: ", np.mean(abs(predictions - depths)))
                 print("Max difference: ", np.max(abs(predictions - depths)))
                 print("Predict: ", predictions)
                 print("Depths: ", depths)
