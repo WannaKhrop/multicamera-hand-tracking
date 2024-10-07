@@ -6,6 +6,7 @@ Date: 23.09.2024
 """
 
 from keras.models import load_model, Sequential
+import tensorflow as tf
 import numpy as np
 from utils.constants import PATH_TO_DNN_MODEL
 from utils.utils import TimeChecker, CustomLoss
@@ -21,9 +22,11 @@ class MedapipeWorldTransformer:
         )
 
     @TimeChecker
-    def predict(
-        self, features: np.ndarray, shape: tuple[int, int] | tuple[int, ...]
-    ) -> np.ndarray:
+    def __call__(self, features: np.ndarray) -> tf.Tensor:
+        return self.predict(features)
+
+    @tf.function(jit_compile=True)
+    def predict(self, features: np.ndarray) -> tf.Tensor:
         """
         Predict world coordinates.
 
@@ -31,13 +34,11 @@ class MedapipeWorldTransformer:
         ----------
         features: np.ndarray
             Results of mediapipe as normalized coordinates.
-        shape: tuple[int, int]
-            Output shape.
         Returns
         -------
-        np.ndarray
-            Result as matrix [21x3].
+        tf.Tensor
+            Tensor with depths [Nx21].
         """
-        results = self.model.predict(features, verbose=0)
+        results = self.model(features)
 
-        return np.array(results.reshape(shape))
+        return results

@@ -1,9 +1,7 @@
 import os
 import sys
-from threading import Event
+from threading import Event, Barrier
 from time import sleep
-from collections import deque
-import pandas as pd
 
 # Add 'src' directory to Python path
 src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src/"))
@@ -18,14 +16,13 @@ def test_threads_rs():
     assert len(arr) > 0, "No cameras are available. Test can not be passed."
 
     close_threads = Event()
-    results: dict[str, deque[tuple[int, str, dict[str, pd.DataFrame]]]] = dict()
+    barrier = Barrier(len(arr))
     threads: dict[str, CameraThreadRS] = dict()
 
     for camera_name, camera_id in arr:
         # threads
-        results[camera_id] = deque()
         threads[camera_id] = CameraThreadRS(
-            camera_name, camera_id, close_threads, results[camera_id]
+            camera_name, camera_id, close_threads, barrier
         )
         threads[camera_id].start()
 

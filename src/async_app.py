@@ -47,7 +47,7 @@ fusion_thread = FusionThread(
 # Dash app initialization
 app = dash.Dash(__name__)
 # do now show logging data
-app.enable_dev_tools(dev_tools_silence_routes_logging=True)
+# app.enable_dev_tools(dev_tools_silence_routes_logging=True)
 
 # Layout
 app.layout = html.Div(
@@ -61,7 +61,7 @@ app.layout = html.Div(
                 "align-items": "center",  # Center vertically
             },
         ),
-        dcc.Interval(id="interval-component", interval=125, n_intervals=0),
+        dcc.Interval(id="interval-component", interval=50, n_intervals=0),
         html.Button("Start Threads", id="start-button", n_clicks=0),
         html.Button("Stop Threads", id="stop-button", n_clicks=0),
     ]

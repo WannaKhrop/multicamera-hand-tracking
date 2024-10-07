@@ -238,7 +238,7 @@ class CustomLoss(losses.Loss):
         mae = tf.reduce_mean(tf.math.abs(y_pred - y_true))
         log_cosh_loss = tf.reduce_mean(tf.math.log(tf.math.cosh(y_pred - y_true)))
 
-        return log_cosh_loss + self.weight * mae
+        return (1.0 - self.weight) * log_cosh_loss + self.weight * mae
 
 
 class TimeChecker(Generic[F_Spec, F_Return]):

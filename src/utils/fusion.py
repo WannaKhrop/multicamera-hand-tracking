@@ -10,6 +10,7 @@ from threading import Lock
 import pandas as pd
 from utils.geometry import landmarks_fusion
 from utils.constants import SOFTMAX_PARAM
+from utils.utils import TimeChecker
 
 
 class DataMerger:
@@ -86,8 +87,9 @@ class DataMerger:
             self.clear_for_timestamp()
 
             # fusion
-            self.make_fusion()
+            self.make_fusion(self)
 
+    @TimeChecker
     def make_fusion(self):
         """Make fusion for current state."""
         # debug

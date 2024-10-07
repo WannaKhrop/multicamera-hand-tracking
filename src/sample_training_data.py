@@ -28,7 +28,6 @@ def main():
     for camera_name, camera_id in available_cameras:
         threads[camera_id] = MLCameraThreadRS(camera_name, camera_id, close_threads)
 
-    # !!! TODO !!!
     # add event to start threads
     input("Start capturing: ")
 
@@ -47,22 +46,26 @@ def main():
             # add clear data
             targets.append(elem_depths)
 
-            # corrupt depths a bit
+            # corrupt depths a bit !!! OPTIONAL ???
             corrupted_depths = elem_depths.copy()
             corrupted_depths += np.random.normal(
-                loc=0.0, scale=0.005, size=corrupted_depths.shape
+                loc=0.0, scale=0.01, size=corrupted_depths.shape
             )
 
+            # add some extra distance
             bernoulli_vector_dist = np.random.binomial(
                 n=1, p=PROB_PARAM_DISANCE, size=corrupted_depths.shape
             )
+            bernoulli_vector_dist = np.array(bernoulli_vector_dist, dtype=bool)
             corrupted_depths[bernoulli_vector_dist] += np.abs(
-                np.random.normal(loc=1.5, scale=2.0, size=corrupted_depths.shape)
+                np.random.normal(loc=1.5, scale=2.0, size=sum(bernoulli_vector_dist))
             )
 
+            # some values to zero
             bernoulli_vector_zero = np.random.binomial(
                 n=1, p=PROB_PARAM_ZERO, size=corrupted_depths.shape
             )
+            bernoulli_vector_zero = np.array(bernoulli_vector_zero, dtype=bool)
             corrupted_depths[bernoulli_vector_zero] = 0.0
 
             # save corrupted

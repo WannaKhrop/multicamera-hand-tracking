@@ -8,7 +8,7 @@ Date: 27.07.2024
 import numpy as np
 import pandas as pd
 
-from utils.utils import softmax, TimeChecker, thread_safe
+from utils.utils import softmax, TimeChecker
 from matplotlib import pyplot as plt
 
 from hand_recognition.HandLandmarks import (
@@ -181,7 +181,7 @@ def is_inside_palm(polygon: list[np.array], plane: np.array, point: np.array) ->
     """
     # results
     list_of_checks = []
-
+    # get normal vector of the plane
     normal_vector = plane[:3] / np.linalg.norm(plane[:3])  # x, y, z - coordinates
 
     for i in range(1, len(polygon)):
@@ -268,7 +268,6 @@ def construct_palm_polygon(
     return polygon
 
 
-@thread_safe
 @TimeChecker
 def assign_visibility(df_landmarks: pd.DataFrame):
     """

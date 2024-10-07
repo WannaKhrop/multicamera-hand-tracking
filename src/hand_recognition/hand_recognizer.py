@@ -7,7 +7,7 @@ Date: 23.07.2024
 # import basic mediapipe components
 import mediapipe as mp
 from mediapipe.framework.formats import landmark_pb2
-from mediapipe.tasks.python.components.containers import NormalizedLandmark, Landmark
+from mediapipe.tasks.python.components.containers import NormalizedLandmark
 
 # import compenents for math and plots
 import numpy as np
@@ -21,38 +21,9 @@ import pyrealsense2 as rs
 
 from utils.constants import CAMERA_RESOLUTION_HEIGHT, CAMERA_RESOLUTION_WIDTH
 from utils.geometry import assign_visibility
-from utils.utils import TimeChecker
-from utils.mediapipe_world_model import MedapipeWorldTransformer
-
-ml_transformer = MedapipeWorldTransformer()
 
 
-def to_numpy_ndarray(landmarks: list[NormalizedLandmark] | list[Landmark]):  # type: ignore
-    """
-    Convert list of Normalized landmarks into a numpy array.
-
-    Parameters
-    ----------
-    landmarks: list[NormalizedLandmark] | list[Landmark]
-        List of landmarks to be converted
-
-    Returns
-    -------
-    np.ndarray:
-        Resulting matrix [21, 3]
-    """
-    # get amount of landmarks
-    num_landmarks = len(landmarks)
-
-    matrix = np.zeros((num_landmarks, 3))
-
-    for idx, landmark in enumerate(landmarks):
-        matrix[idx] = np.array([landmark.x, landmark.y, landmark.z])
-
-    return matrix
-
-
-def to_numpy_ndarray_holistics(landmarks: landmark_pb2.NormalizedLandmarkList):
+def to_numpy_ndarray(landmarks: landmark_pb2.NormalizedLandmarkList):
     """
     Convert list of Normalized landmarks into a numpy array.
 
@@ -153,25 +124,16 @@ def get_data_from_pixel_depth(
     return point
 
 
-def convert_hand_holistic(
+def convert_hand(
     holistic_landmarks: landmark_pb2.NormalizedLandmarkList,
-    depth_frame: np.ndarray,
-    intrinsics: rs.pyrealsense2.intrinsics,
 ) -> pd.DataFrame:
     """
-    Coverts results of holistic landmark-detection to camera coordinates.
-
-    This method also assigns visibility to each landmark.
-    Coordinates with small visibility are absolutely unreliable !!!
+    Coverts results of holistic landmark-detection to pandas dataframe and assign visibility.
 
     Parameters
     ----------
     holistic_landmarks: landmark_pb2.NormalizedLandmarkList
         Landmarks of the hand.
-    depth_frame: np.ndarray
-        Depth data from image.
-    intrinsics: rs.pyrealsense2.intrinsics
-        Camera intrinsics parameters.
 
     Returns
     -------
@@ -179,41 +141,7 @@ def convert_hand_holistic(
         DataFrame with camera coordinates and visibility like: [x, y, z, visibility]
     """
     # get normalized landmarks
-    landmarks = hand_to_df(to_numpy_ndarray_holistics(holistic_landmarks))
-
-    # get coordinates and identifz the closest point to the camera
-    coords = ["x", "y", "z"]
-    depths: list[float] = list()
-    for idx in landmarks.index:
-        # get pixels
-        x, y = landmarks.loc[idx].x, landmarks.loc[idx].y
-        x_pixel, y_pixel = (
-            int(x * CAMERA_RESOLUTION_WIDTH),
-            int(y * CAMERA_RESOLUTION_HEIGHT),
-        )
-        # get depths and save
-        depth = camera.get_depth(
-            x_pixel=x_pixel, y_pixel=y_pixel, depth_frame=depth_frame
-        )
-        depths.append(depth)
-
-    # run ML model and get real depths
-    np_depths = np.array(depths)
-    features = np.hstack([landmarks.z.values, np_depths])
-    landmarks.loc[:, "z"] = ml_transformer.predict(
-        ml_transformer, features=features.reshape(1, -1), shape=np_depths.shape
-    )
-    """
-    print(np_depths)
-    print(landmarks.z.values)
-    print(60 * "=")
-    """
-
-    # handle zeros where depth was missed
-    # now we have assumption about depth and use it to correct coordinates
-    for idx in landmarks.index:
-        x, y, depth = landmarks.loc[idx].x, landmarks.loc[idx].y, landmarks.loc[idx].z
-        landmarks.loc[idx, coords] = get_data_from_pixel_depth(x, y, depth, intrinsics)
+    landmarks = hand_to_df(to_numpy_ndarray(holistic_landmarks))
 
     # visibility
     assign_visibility(landmarks)
@@ -221,23 +149,69 @@ def convert_hand_holistic(
     return landmarks
 
 
-@TimeChecker
-def convert_to_camera_coordinates_holistic(
-    mp_results: mp.tasks.vision.HolisticLandmarkerResult,  # type: ignore
-    depth_frame: np.ndarray,
-    intrinsics: rs.pyrealsense2.intrinsics,
-) -> dict[str, pd.DataFrame]:
+def convert_to_features(landmarks: pd.DataFrame, depth_frame: np.ndarray) -> np.ndarray:
     """
-    Apply mediapipe to color_frame and extract camera coordinates of each landmark.
+    Convert landmarks to features using depth frame.
+
+    Parameters
+    ----------
+    landmarks: pd.DataFrame
+        DataFrame with camera coordinates and visibility like: [x, y, z, visibility.
+    depth_frame: np.ndarray
+        Depth data from image.
+
+    Returns
+    -------
+    np.ndarray
+        Features as vector.
+    """
+    # get coordinates and identifz the closest point to the camera
+    depths: list[float] = list()
+    x = (landmarks.x.values * CAMERA_RESOLUTION_WIDTH).astype(int)
+    y = (landmarks.y.values * CAMERA_RESOLUTION_HEIGHT).astype(int)
+    for x_pixel, y_pixel in zip(x, y):
+        # get depths and save
+        depth = camera.get_depth(
+            x_pixel=x_pixel, y_pixel=y_pixel, depth_frame=depth_frame
+        )
+        depths.append(depth)
+
+    # constuct features
+    return np.hstack([landmarks.z.values, np.array(depths)])
+
+
+def retrieve_from_depths(
+    landmarks: pd.DataFrame, depths: np.ndarray, intrinsics: rs.pyrealsense2.intrinsics
+):
+    """
+    Retrieve camera coordinates for landmarks having depths.
+
+    Parameters
+    ----------
+    holistic_landmarks: landmark_pb2.NormalizedLandmarkList
+        Landmarks of the hand. Will be changed !!!
+    depths: np.ndarray
+        Predicted depths.
+    intrinsics: rs.pyrealsense2.intrinsics
+        Camera intrinsics parameters.
+    """
+    coords = ["x", "y", "z"]
+    # now we have assumption about depth and use it to correct coordinates
+    for idx, depth in zip(landmarks.index, depths, strict=True):
+        x, y = landmarks.loc[idx].x, landmarks.loc[idx].y
+        landmarks.loc[idx, coords] = get_data_from_pixel_depth(x, y, depth, intrinsics)
+
+
+def extract_landmarks(
+    mp_results: mp.tasks.vision.HolisticLandmarkerResult,
+) -> dict[str, pd.DataFrame]:  # type: ignore
+    """
+    Extract each landmark.
 
     Parameters
     ----------
     mp_results: mp.tasks.vision.HolisticLandmarkerResult
         Results of detection.
-    depth_frame: np.ndarray
-        Depth data from image.
-    intrinsics: rs.pyrealsense2.intrinsics
-        Camera intrinsics parameters.
 
     Returns
     -------
@@ -249,18 +223,14 @@ def convert_to_camera_coordinates_holistic(
     # for testing
     if mp_results.left_hand_landmarks is not None:
         # get result
-        hands["Left"] = convert_hand_holistic(
+        hands["Left"] = convert_hand(
             holistic_landmarks=mp_results.left_hand_landmarks,
-            depth_frame=depth_frame,
-            intrinsics=intrinsics,
         )
 
     if mp_results.right_hand_landmarks is not None:
         # get result
-        hands["Right"] = convert_hand_holistic(
-            holistic_landmarks=mp_results.right_hand_landmarks,
-            depth_frame=depth_frame,
-            intrinsics=intrinsics,
+        hands["Right"] = convert_hand(
+            holistic_landmarks=mp_results.right_hand_landmarks
         )
 
     return hands
