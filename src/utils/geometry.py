@@ -135,7 +135,7 @@ def find_palm_plane(df_palm_landmarks: pd.DataFrame) -> np.ndarray:
     return np.array([A, B, C, D], dtype=float)
 
 
-def project_point_to_plane(plane: np.ndarray, point: np.array) -> np.ndarray:
+def project_point_to_plane(plane: np.ndarray, points: np.ndarray) -> np.ndarray:
     """
     Project a point on a plane in 3D space.
 
@@ -143,8 +143,8 @@ def project_point_to_plane(plane: np.ndarray, point: np.array) -> np.ndarray:
     ----------
     plane: np.ndarray
         Plane as array [A, B, C, D]
-    point: np.array
-        Point to be projected
+    points: np.ndarray
+        Points to be projected as [Nx3]
 
     Returns
     -------
@@ -152,56 +152,74 @@ def project_point_to_plane(plane: np.ndarray, point: np.array) -> np.ndarray:
         Projection point
     """
     # get points and normal vector
-    point_ext = np.hstack([point, np.ones(1)])
+    points_ext = np.hstack([points, np.ones(shape=(points.shape[0], 1))])
     normal_vector = np.array([plane[0], plane[1], plane[2]])
     normal_vector_normalized = normal_vector / np.linalg.norm(normal_vector)
 
-    d = np.dot(point_ext, plane) / np.linalg.norm(normal_vector)
+    # find projections on plane for all landmarks
+    distances = np.dot(points_ext, plane.reshape(-1, 1)) / np.linalg.norm(normal_vector)
 
-    return point - d * normal_vector_normalized
+    return points - distances * normal_vector_normalized
 
 
-def is_inside_palm(polygon: list[np.array], plane: np.array, point: np.array) -> bool:
+@TimeChecker
+def is_inside_palm(
+    polygon: np.ndarray, plane: np.ndarray, points: np.ndarray
+) -> np.ndarray:
     """
-    Check if point is inside a poligon. All points of polygon belong to one plane !!!
+    Check if points are inside a poligon. All points of polygon belong to one plane.
 
     Paramerters
     -----------
-    polygon: list[np.array]
-        Polygon of points that defines a convex hull palm.
+    polygon: np.array
+        Polygon of points that defines a convex hull palm as [N_POLYGONx3].
     plane: np.array
         Plane that defines polygon.
-    point: np.array
-        Point to be checked.
+    points: np.array
+        Points to be checked as [Nx3].
 
     Returns
     -------
+    np.ndarray
         True, if point belongs to polygon.
         False, otherwise.
     """
-    # results
-    list_of_checks = []
     # get normal vector of the plane
     normal_vector = plane[:3] / np.linalg.norm(plane[:3])  # x, y, z - coordinates
 
-    for i in range(1, len(polygon)):
-        p_start, p_finish = polygon[i - 1], polygon[i]
+    p_start = np.array(polygon).T  # 3xN_POLYVERT
+    p_finish = np.roll(p_start, shift=-1, axis=1)  # 3xN_POLYVERT
 
-        # create vectors
-        vect_start = point - p_start
-        vect_finish = p_finish - point
+    # vectors calculations using broadcasting
+    vect_start = (
+        points[:, :, np.newaxis] - p_start[np.newaxis, :, :]
+    )  # N_POINTx3x1 - 1x3xN_POLYVERT = N_POINTx3xN_POLYVERT
+    vect_finish = (
+        p_finish[np.newaxis, :, :] - points[:, :, np.newaxis]
+    )  # N_POINTx3x1 - 1x3xN_POLYVERT = N_POINTx3xN_POLYVERT
 
-        # get normalized dot product
-        cross_product = np.cross(vect_start, vect_finish)
-        cross_product /= np.linalg.norm(cross_product)
+    # get cross product vectors
+    cross_product = np.cross(
+        vect_start, vect_finish, axis=1
+    )  # N_POINTx3xN_POLYVERT cross N_POINTx3xN_POLYVERT = N_POINTx3xN_POLYVERT
 
-        # get cosine with plane normal vector (can be 1 or -1)
-        list_of_checks.append(np.dot(cross_product, normal_vector))
+    # normalize and take care of vectors with zero norms
+    cross_product_norms = np.linalg.norm(cross_product, axis=1, keepdims=True)
+    cross_product_norms = np.where(
+        cross_product_norms <= 1e-3, 1.0, cross_product_norms
+    )
+    cross_product /= cross_product_norms
 
-    # if all the time we have the same oriented cross-product
-    result = np.array(list_of_checks)
+    # dot product with plane normal
+    dot_product = np.tensordot(
+        cross_product, normal_vector, axes=([1], [0])
+    )  # N_POINTx3xN_POLYVERT tensordot 3x1 = N_POINTxN_POLYVERT
 
-    return (result > 0).all() or (result < 0).all()
+    # final decision as bool vector
+    positive_results = (dot_product >= 0.0).all(axis=1)
+    negative_results = (dot_product <= 0.0).all(axis=1)
+
+    return positive_results | negative_results
 
 
 def construct_palm_polygon(
@@ -244,15 +262,10 @@ def construct_palm_polygon(
     wrist_left = np.array(df_palm_landmarks.loc[PALM_INDEX_FINGER]) + projection_vector
     wrist_right = np.array(df_palm_landmarks.loc[PALM_PINKY_FINGER]) + projection_vector
 
-    # project middle finger on plane
-    middle_finger_projection = project_point_to_plane(
-        plane=plane, point=np.array(df_palm_landmarks.loc[PALM_MIDDLE_FINGER])
-    )
-
-    # ring finger projection
-    ring_finger_projection = project_point_to_plane(
-        plane=plane, point=np.array(df_palm_landmarks.loc[PALM_RING_FINGER])
-    )
+    # project middle finger and ring finger on plane
+    points = df_palm_landmarks.loc[[PALM_MIDDLE_FINGER, PALM_RING_FINGER]].values
+    projections = project_point_to_plane(plane=plane, points=points)
+    middle_finger_projection, ring_finger_projection = projections[0], projections[1]
 
     polygon = [
         np.array(df_palm_landmarks.loc[PALM_INDEX_FINGER]),
@@ -288,7 +301,7 @@ def assign_visibility(df_landmarks: pd.DataFrame):
 
     # Coordinates of all points
     coords = ["x", "y", "z"]
-    all_points = df_landmarks[coords].values.T  # 3x21
+    all_points = df_landmarks.loc[:, coords].values.T  # 3x21
 
     # Initialize visibility array
     visibility = np.ones(len(df_landmarks))  # 21,
@@ -335,20 +348,13 @@ def assign_visibility(df_landmarks: pd.DataFrame):
 
     # Check palm occlusion for points not in palm landmarks
     not_palm_mask = np.isin(df_landmarks.index, palm_landmarks, invert=True)  # 21,
-    palm_projections = np.array(
-        [
-            project_point_to_plane(palm_plane, landmark)
-            for landmark in all_points.T[not_palm_mask]
-        ]
+    palm_projections = project_point_to_plane(
+        plane=palm_plane, points=all_points.T[not_palm_mask]
     )  # 21x3
 
-    inside_palm_mask = np.array(
-        [
-            is_inside_palm(palm_polygon, palm_plane, projection)
-            for projection in palm_projections
-        ],
-        dtype=bool,
-    )  # 21,
+    # if point is inside palm
+    inside_palm_mask = is_inside_palm(palm_polygon, palm_plane, palm_projections)  # 21,
+
     palm_projection_vectors = (
         palm_projections[inside_palm_mask]
         - all_points.T[not_palm_mask][inside_palm_mask]

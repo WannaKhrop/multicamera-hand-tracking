@@ -24,6 +24,8 @@ from utils.constants import TIME_DELTA
 # get all cameras we have
 available_cameras = CameraThreadRS.returnCameraIndexes()
 
+assert len(available_cameras) > 0, "Please connect a camera !"
+
 # Set up event and threads
 close_threads = Event()  # to close threads
 camera_barrier = Barrier(parties=len(available_cameras))
@@ -61,7 +63,7 @@ app.layout = html.Div(
                 "align-items": "center",  # Center vertically
             },
         ),
-        dcc.Interval(id="interval-component", interval=50, n_intervals=0),
+        dcc.Interval(id="interval-component", interval=75, n_intervals=0),
         html.Button("Start Threads", id="start-button", n_clicks=0),
         html.Button("Stop Threads", id="stop-button", n_clicks=0),
     ]
