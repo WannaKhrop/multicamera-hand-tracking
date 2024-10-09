@@ -304,47 +304,89 @@ def assign_visibility(df_landmarks: pd.DataFrame):
     all_points = df_landmarks.loc[:, coords].values.T  # 3x21
 
     # Initialize visibility array
-    visibility = np.ones(len(df_landmarks))  # 21,
+    visibility = np.ones(len(df_landmarks))  # 21
 
-    # Vectorized line projection for finger connections
-    for p_idx_1, p_idx_2 in finger_connections:
-        point1 = df_landmarks.loc[p_idx_1, coords].values.reshape((-1, 1))  # 3x1
-        point2 = df_landmarks.loc[p_idx_2, coords].values.reshape((-1, 1))  # 3x1
+    # get dimentions of work
+    points = all_points.T
+    point1 = points[[fc[0] for fc in finger_connections]]
+    point2 = points[[fc[1] for fc in finger_connections]]
+    n_points = points.shape[0]
+    n_connections = len(point1)
+    n_dim = points.shape[1]
 
-        # Calculate projections for all points
-        line_vector = point2 - point1  # 3x1 - 3x1 = 3x1
-        line_vector_normalized = line_vector / np.linalg.norm(
-            line_vector
-        )  # 3x1 / const = 3x1
-        vectors_to_points = all_points - point1  # 3x21 - 3x1 = 3x21 // broadcast
-        scales = np.dot(
-            vectors_to_points.T, line_vector_normalized
-        )  # 21x3 dot 3x1 = 21x1
-        projection_points = point1 + np.dot(
-            line_vector_normalized, scales.T
-        )  # 3x1 + 3x1 dot 1x21 = 3x21
+    _visibility = np.ones(n_points)
 
-        # Check if projections are between points (clamping)
-        mask_between = is_between(point1, point2, projection_points)  # 21,
+    # preparation
+    point1 = point1.T.reshape(1, n_dim, n_connections)  # (1, 3, n_connections)
+    point2 = point2.T.reshape(1, n_dim, n_connections)  # (1, 3, n_connections)
 
-        # Calculate projection vectors and process self projections
-        projection_vectors = projection_points - all_points  # 3x21 - 3x21 = 3x21
-        projection_vectors_norms = np.linalg.norm(
-            projection_vectors, axis=0, keepdims=True
-        )  # 1x21
-        projection_vectors_norms = np.where(
-            projection_vectors_norms > 1e-3, projection_vectors_norms, 1.0
-        )  # handle zero vectors to avoi division
-        projection_vectors /= projection_vectors_norms  # 3x21
+    # construct segments
+    lines = point2 - point1  # (1, 3, n_connections)
+    lines_norms = np.linalg.norm(lines, axis=1, keepdims=True)
+    lines_norms = np.where(lines_norms <= 1e-3, 1.0, lines_norms)
+    lines_normalized = lines / lines_norms  # (1, 3, n_connections)
 
-        cosines = np.squeeze(
-            np.dot(projection_vectors.T, camera_vector)
-        )  # 21x3 dot 3x1 = squeeze(21x1) = 21,
+    # get vectors to points
+    vectors_to_points = (
+        points.reshape(n_points, n_dim, 1) - point1
+    )  # (n_points, 3, n_connections)
 
-        # Update visibility where projections are between
-        visibility[mask_between] = np.minimum(
-            visibility[mask_between], 1.0 - cosines[mask_between]
-        )
+    # get lengths of projection vectors
+    scales = np.sum(
+        vectors_to_points * lines_normalized, axis=1, keepdims=True
+    )  # (n_points, 1, n_connections)
+
+    # find projection points
+    projections = scales * lines_normalized + point1  # (n_points, 3, n_connections)
+
+    # check if point is inside segment
+    # -------------------------------------------------------
+    # find segment
+    segments = point2 - point1  # (1, 3, n_connections)
+    segment_start = projections - point1  # (n_points, 3, n_connections)
+    segment_end = projections - point2  # (n_points, 3, n_connections)
+
+    # check relations between left side and right side vectors
+    dot_check_start = np.sum(
+        segment_start * segments, axis=1, keepdims=True
+    )  # (n_points, 1, n_connections)
+    dot_check_end = np.sum(
+        segment_end * segments, axis=1, keepdims=True
+    )  # (n_points, 1, n_connections)
+
+    # check left side length and segment length
+    segment_start_norm = np.linalg.norm(segment_start, axis=1, keepdims=True)
+    segments_norm = np.linalg.norm(segments, axis=1, keepdims=True)
+
+    # if left side is positive and right side is negative and projection length is smaller that segment lenght we are inside
+    mask_between = (
+        (dot_check_start >= 0)
+        & (dot_check_end <= 0)
+        & (segment_start_norm <= segments_norm)
+    )  # (n_points, 1, n_connections)
+    mask_between = mask_between.squeeze()  # (n_points, n_connections)
+    # -------------------------------------------------------
+
+    # find projection vectors
+    projection_vectors = projections - points.reshape(n_points, n_dim, 1)
+    projection_vectors_norm = np.linalg.norm(projection_vectors, axis=1, keepdims=True)
+    projection_vectors_norm = np.where(
+        projection_vectors_norm <= 1e-3, 1.0, projection_vectors_norm
+    )
+    projection_vectors /= projection_vectors_norm
+
+    # check relation with camera vector
+    cosine_values = np.sum(
+        projection_vectors * camera_vector.reshape(1, -1, 1), axis=1, keepdims=True
+    )  # (n_points, 1, n_connections)
+    cosine_values = cosine_values.squeeze()
+
+    # gain visibilities
+    for point in range(n_points):
+        cosine_values_point = cosine_values[point][mask_between[point]]
+        if len(cosine_values_point) > 0:
+            value = np.min(1.0 - cosine_values_point)
+            _visibility[point] = min(_visibility[point], value)
 
     # Check palm occlusion for points not in palm landmarks
     not_palm_mask = np.isin(df_landmarks.index, palm_landmarks, invert=True)  # 21,
