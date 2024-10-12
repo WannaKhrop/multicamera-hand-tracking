@@ -86,18 +86,13 @@ class DataMerger:
             # adjust frames for fusion
             self.clear_for_timestamp()
 
-            # fusion
-            self.make_fusion(self)
-
     @TimeChecker
     def make_fusion(self):
         """Make fusion for current state."""
         # debug
-        """
         for point in self.points:
             print(point[0], point[1])
         print(60 * "=")
-        """
 
         # go over all points and get the number of hands
         hands = set(["Left", "Right"])

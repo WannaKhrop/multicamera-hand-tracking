@@ -5,7 +5,7 @@ Author: Ivan Khrop
 Data: 08.08.2024
 """
 # basic imports
-from threading import Thread, Event
+from threading import Thread, Event, Barrier, BrokenBarrierError
 from time import sleep
 import numpy as np
 
@@ -16,6 +16,7 @@ from utils.fusion import DataMerger
 from utils.mediapipe_world_model import MedapipeWorldTransformer
 from hand_recognition.hand_recognizer import convert_to_features, retrieve_from_depths
 from utils.utils import TimeChecker
+from utils.constants import DATA_WAIT_TIME
 
 
 class FusionThread(Thread):
@@ -37,34 +38,47 @@ class FusionThread(Thread):
     merger: DataMerger
     transformer: CoordinateTransformer = CoordinateTransformer()
     ml_detector: MedapipeWorldTransformer = MedapipeWorldTransformer()
+    data_barrier: Barrier
 
     def __init__(
-        self, stop_thread: Event, sources: dict[str, CameraThreadRS], merger: DataMerger
+        self,
+        stop_thread: Event,
+        sources: dict[str, CameraThreadRS],
+        merger: DataMerger,
+        data_barrier: Barrier,
     ):
         """Initialize a new instance of Thread."""
         Thread.__init__(self)
         self.stop_thread = stop_thread
         self.sources = sources
         self.merger = merger
+        self.data_barrier = data_barrier
 
     def run(self):
         """Run thread and process results."""
         # untill threads stopped
         while not self.stop_thread.is_set():
+            # give time for other threads and wait for data
+            try:
+                self.data_barrier.wait(timeout=DATA_WAIT_TIME)
+            except BrokenBarrierError:
+                print(
+                    "Data-Barrier is broken, proceeding without synchronization is impossible."
+                )
+                self.stop_thread.set()
+                break
             # if there is a source with new data
             self.process_sources(self)
             # sleep a bit
-            sleep(0.02)
+            sleep(0.01)
 
     @TimeChecker
     def process_sources(self):
         """Go over all sources, get the latest results and fuse them."""
-        for source in self.sources:
-            # get frame
-            timestamp, _, detected_hands, depth_frame, intrinsics = self.sources[
-                source
-            ].get_frame()
+        # collect data from threads
+        data = [self.sources[source].get_frame() for source in self.sources]
 
+        for timestamp, source, detected_hands, depth_frame, intrinsics in data:
             # if no results, then just next source
             if (
                 timestamp is None
@@ -104,5 +118,8 @@ class FusionThread(Thread):
                         points=detected_hands[hand].loc[:, axes].values,
                     )
 
-                # make fusion
-                self.merger.add_time_frame(timestamp, source, detected_hands)
+                    # make fusion
+                    self.merger.add_time_frame(timestamp, source, detected_hands)
+
+                # do fusion
+                self.merger.make_fusion(self.merger)

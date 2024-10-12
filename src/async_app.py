@@ -28,7 +28,10 @@ assert len(available_cameras) > 0, "Please connect a camera !"
 
 # Set up event and threads
 close_threads = Event()  # to close threads
-camera_barrier = Barrier(parties=len(available_cameras))
+camera_barrier = Barrier(parties=len(available_cameras))  # just all cameras
+data_barrier = Barrier(
+    parties=len(available_cameras) + 1
+)  # all cameras + one processing thread !!!
 
 # Camera threads initialization
 threads = {
@@ -37,19 +40,23 @@ threads = {
         camera_id=camera_id,
         close_event=close_threads,
         barrier=camera_barrier,
+        data_barrier=data_barrier,
     )
     for camera_name, camera_id in available_cameras
 }
 
-data_merger = DataMerger(TIME_DELTA)
+data_merger = DataMerger(time_delta=TIME_DELTA)
 fusion_thread = FusionThread(
-    stop_thread=close_threads, sources=threads, merger=data_merger
+    stop_thread=close_threads,
+    sources=threads,
+    merger=data_merger,
+    data_barrier=data_barrier,
 )
 
 # Dash app initialization
 app = dash.Dash(__name__)
 # do now show logging data
-# app.enable_dev_tools(dev_tools_silence_routes_logging=True)
+app.enable_dev_tools(dev_tools_silence_routes_logging=True)
 
 # Layout
 app.layout = html.Div(
@@ -79,10 +86,10 @@ custom_layout = go.Layout(
         xaxis_title="X Axis",
         yaxis_title="Y Axis",
         zaxis_title="Z Axis",
-        xaxis=dict(range=(-0.5, 0.5), autorange=False),  # Set the x-axis limit
-        yaxis=dict(range=(-0.5, 0.5), autorange=False),  # Set the y-axis limit
-        zaxis=dict(range=(0.0, 1.5), autorange=False),  # Set the z-axis limit
-        camera=dict(eye=dict(x=1.0, y=1.0, z=1.5)),
+        xaxis=dict(range=(-1.0, 1.0), autorange=False),  # Set the x-axis limit
+        yaxis=dict(range=(-1.0, 1.0), autorange=False),  # Set the y-axis limit
+        zaxis=dict(range=(0.0, 1.0), autorange=False),  # Set the z-axis limit
+        camera=dict(eye=dict(x=1.0, y=1.0, z=1.0)),
         aspectmode="manual",  # Fixes the aspect ratio
         aspectratio=dict(x=1, y=1, z=1),  # Ensures aspect ratio remains constant
     ),

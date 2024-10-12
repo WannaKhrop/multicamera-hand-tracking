@@ -19,13 +19,18 @@ def create_model(in_shape: int, out_shape: int):
     # Input layer
     model.add(layers.InputLayer(input_shape=(in_shape,)))
 
+    # hidden
+    model.add(
+        layers.Dense(168, activation="tanh", kernel_regularizer=regularizers.l2(1e-4))
+    )
+
     # Output layer
-    model.add(layers.Dense(out_shape, kernel_regularizer=regularizers.l2(1e-3)))
-    model.add(layers.LeakyReLU(alpha=0.1))
+    model.add(layers.Dense(out_shape, kernel_regularizer=regularizers.l2(1e-4)))
+    model.add(layers.LeakyReLU(alpha=0.2))
 
     # Compile the model using MAE + LOGCOSH as the loss function
     model.compile(
-        optimizer="adam", loss=CustomLoss(weight=0.85), metrics=["mae", "logcosh"]
+        optimizer="adam", loss=CustomLoss(weight=0.50), metrics=["mae", "logcosh"]
     )
 
     return model
@@ -34,6 +39,8 @@ def create_model(in_shape: int, out_shape: int):
 # Example data for training (just for demonstration)
 X = np.load(str(PATH_TO_DATA_FOLDER.joinpath("features.npy")))
 y = np.load(str(PATH_TO_DATA_FOLDER.joinpath("targets.npy")))
+
+print("Data shapes: ", X.shape, y.shape)
 
 # Create the model
 model = create_model(in_shape=X.shape[1], out_shape=y.shape[1])

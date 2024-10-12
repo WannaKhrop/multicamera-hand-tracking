@@ -17,9 +17,7 @@ def main():
     # read available cameras
     available_cameras = MLCameraThreadRS.returnCameraIndexes()
     # check cameras
-    assert (
-        len(available_cameras) > 0
-    ), "No cameras are available. Test can not be passed."
+    assert len(available_cameras) == 1, "Sampling is possible for one camera only !!!"
 
     # define events and data
     close_threads = Event()
@@ -78,12 +76,27 @@ def main():
     data_x = np.vstack(data_in)
     data_y = np.vstack(data_out)
 
-    print(data_x.shape)
-    print(data_y.shape)
+    # we collect a lot of data all the time, so we can just add it in the existing file !!!
+    try:
+        # read existing data
+        features = np.load(str(PATH_TO_DATA_FOLDER.joinpath("features.npy")))
+        targets = np.load(str(PATH_TO_DATA_FOLDER.joinpath("targets.npy")))
+    except Exception:
+        # just assign
+        features = np.empty((0, data_x.shape[1]))
+        targets = np.empty((0, data_y.shape[1]))
+
+    # add new data and as vertical stack
+    features = np.vstack([features, data_x])
+    targets = np.vstack([targets, data_y])
+
+    # print results
+    print(features.shape)
+    print(targets.shape)
 
     # save data
-    np.save(str(PATH_TO_DATA_FOLDER.joinpath("features.npy")), data_x)
-    np.save(str(PATH_TO_DATA_FOLDER.joinpath("targets.npy")), data_y)
+    np.save(str(PATH_TO_DATA_FOLDER.joinpath("features.npy")), features)
+    np.save(str(PATH_TO_DATA_FOLDER.joinpath("targets.npy")), targets)
 
 
 if __name__ == "__main__":

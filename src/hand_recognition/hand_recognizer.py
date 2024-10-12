@@ -203,8 +203,8 @@ def retrieve_from_depths(
 
 
 def extract_landmarks(
-    mp_results: mp.tasks.vision.HolisticLandmarkerResult,
-) -> dict[str, pd.DataFrame]:  # type: ignore
+    mp_results: mp.tasks.vision.HolisticLandmarkerResult,  # type: ignore
+) -> dict[str, pd.DataFrame]:
     """
     Extract each landmark.
 

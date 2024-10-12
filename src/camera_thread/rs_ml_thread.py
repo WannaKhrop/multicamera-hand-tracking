@@ -15,7 +15,7 @@ import pyrealsense2 as rs
 # models
 from hand_recognition.HolisticLandmarker import HolisticLandmarker
 from hand_recognition.hand_recognizer import (
-    to_numpy_ndarray_holistics,
+    to_numpy_ndarray,
     get_depth_data_from_pixel,
 )
 from utils.utils import thread_safe
@@ -76,7 +76,7 @@ class MLCameraThreadRS(Thread):
 
             # for each hand get depths and
             if mp_results.left_hand_landmarks is not None:
-                landmarks = to_numpy_ndarray_holistics(mp_results.left_hand_landmarks)
+                landmarks = to_numpy_ndarray(mp_results.left_hand_landmarks)
                 # get depth data
                 rel_depths, depths = MLCameraThreadRS.process_hand(
                     landmarks, depth_frame, intrinsics
@@ -88,7 +88,7 @@ class MLCameraThreadRS(Thread):
 
             # for each hand get depths and
             if mp_results.right_hand_landmarks is not None:
-                landmarks = to_numpy_ndarray_holistics(mp_results.right_hand_landmarks)
+                landmarks = to_numpy_ndarray(mp_results.right_hand_landmarks)
                 # get depth data
                 rel_depths, depths = MLCameraThreadRS.process_hand(
                     landmarks, depth_frame, intrinsics

@@ -52,7 +52,13 @@ SOFTMAX_PARAM = 50.0
 # time delay parameter
 # each timestamp is time() * 1000.
 # TIME_DELTA defines time diffence in 1e-3 sec.
-TIME_DELTA = 10  # each TIME_DELTA * 1e-3 sec.
+TIME_DELTA = 30  # each TIME_DELTA * 1e-3 sec.
+
+# barrier waiting time, depends on the start
+# for safety reasons we need to assigng a large value, but control it
+# otherwise one thread is broken and all application is in trouble
+CAMERA_WAIT_TIME = 1.0  # 1.0 sec.
+DATA_WAIT_TIME = 10.0  # 60.0 sec. Just for safety
 
 # for ML data sampling
 PROB_PARAM_ZERO = 0.1

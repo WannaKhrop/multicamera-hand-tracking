@@ -17,12 +17,17 @@ def test_threads_rs():
 
     close_threads = Event()
     barrier = Barrier(len(arr))
+    data_barrier = Barrier(len(arr))  # just to test threads for cameras
     threads: dict[str, CameraThreadRS] = dict()
 
     for camera_name, camera_id in arr:
         # threads
         threads[camera_id] = CameraThreadRS(
-            camera_name, camera_id, close_threads, barrier
+            camera_name,
+            camera_id,
+            close_threads,
+            barrier,
+            data_barrier,
         )
         threads[camera_id].start()
 

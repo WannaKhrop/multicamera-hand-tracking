@@ -301,20 +301,19 @@ def assign_visibility(df_landmarks: pd.DataFrame):
 
     # Coordinates of all points
     coords = ["x", "y", "z"]
-    all_points = df_landmarks.loc[:, coords].values.T  # 3x21
 
     # Initialize visibility array
     visibility = np.ones(len(df_landmarks))  # 21
 
     # get dimentions of work
-    points = all_points.T
+    points = df_landmarks.loc[:, coords].values
     point1 = points[[fc[0] for fc in finger_connections]]
     point2 = points[[fc[1] for fc in finger_connections]]
     n_points = points.shape[0]
     n_connections = len(point1)
     n_dim = points.shape[1]
 
-    _visibility = np.ones(n_points)
+    visibility = np.ones(n_points)
 
     # preparation
     point1 = point1.T.reshape(1, n_dim, n_connections)  # (1, 3, n_connections)
@@ -342,7 +341,7 @@ def assign_visibility(df_landmarks: pd.DataFrame):
     # check if point is inside segment
     # -------------------------------------------------------
     # find segment
-    segments = point2 - point1  # (1, 3, n_connections)
+    segments = lines  # (1, 3, n_connections)
     segment_start = projections - point1  # (n_points, 3, n_connections)
     segment_end = projections - point2  # (n_points, 3, n_connections)
 
@@ -386,20 +385,19 @@ def assign_visibility(df_landmarks: pd.DataFrame):
         cosine_values_point = cosine_values[point][mask_between[point]]
         if len(cosine_values_point) > 0:
             value = np.min(1.0 - cosine_values_point)
-            _visibility[point] = min(_visibility[point], value)
+            visibility[point] = min(visibility[point], value)
 
     # Check palm occlusion for points not in palm landmarks
     not_palm_mask = np.isin(df_landmarks.index, palm_landmarks, invert=True)  # 21,
     palm_projections = project_point_to_plane(
-        plane=palm_plane, points=all_points.T[not_palm_mask]
+        plane=palm_plane, points=points[not_palm_mask]
     )  # 21x3
 
     # if point is inside palm
     inside_palm_mask = is_inside_palm(palm_polygon, palm_plane, palm_projections)  # 21,
 
     palm_projection_vectors = (
-        palm_projections[inside_palm_mask]
-        - all_points.T[not_palm_mask][inside_palm_mask]
+        palm_projections[inside_palm_mask] - points[not_palm_mask][inside_palm_mask]
     )  # 21x3
 
     cosines_palm = np.squeeze(

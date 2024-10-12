@@ -216,7 +216,7 @@ def make_video(name: str, frames: Iterable[np.ndarray]):
     video_name: str = str(PATH_TO_VIDEOS.joinpath(name + ".avi"))
     codec = cv2.VideoWriter.fourcc(*"XVID")
     size: Sequence[int] = (CAMERA_RESOLUTION_WIDTH, CAMERA_RESOLUTION_HEIGHT)
-    video = cv2.VideoWriter(filename=video_name, fourcc=codec, fps=20.0, frameSize=size)
+    video = cv2.VideoWriter(filename=video_name, fourcc=codec, fps=10.0, frameSize=size)
 
     for frame in frames:
         video.write(frame)
