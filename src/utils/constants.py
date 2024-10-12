@@ -52,7 +52,7 @@ SOFTMAX_PARAM = 50.0
 # time delay parameter
 # each timestamp is time() * 1000.
 # TIME_DELTA defines time diffence in 1e-3 sec.
-TIME_DELTA = 30  # each TIME_DELTA * 1e-3 sec.
+TIME_DELTA = 50  # each TIME_DELTA * 1e-3 sec.
 
 # barrier waiting time, depends on the start
 # for safety reasons we need to assigng a large value, but control it

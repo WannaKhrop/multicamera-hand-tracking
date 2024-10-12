@@ -149,7 +149,9 @@ def convert_hand(
     return landmarks
 
 
-def convert_to_features(landmarks: pd.DataFrame, depth_frame: np.ndarray) -> np.ndarray:
+def convert_to_features(
+    landmarks: pd.DataFrame, depth_frame: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Convert landmarks to features using depth frame.
 
@@ -162,8 +164,8 @@ def convert_to_features(landmarks: pd.DataFrame, depth_frame: np.ndarray) -> np.
 
     Returns
     -------
-    np.ndarray
-        Features as vector.
+    tuple[np.ndarray, np.ndarray]
+        Relative depths, Measured depths
     """
     # get coordinates and identifz the closest point to the camera
     depths: list[float] = list()
@@ -177,7 +179,7 @@ def convert_to_features(landmarks: pd.DataFrame, depth_frame: np.ndarray) -> np.
         depths.append(depth)
 
     # constuct features
-    return np.hstack([landmarks.z.values, np.array(depths)])
+    return landmarks.z.values, np.array(depths)
 
 
 def retrieve_from_depths(

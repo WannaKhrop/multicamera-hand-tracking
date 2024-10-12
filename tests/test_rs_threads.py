@@ -7,7 +7,7 @@ from time import sleep
 src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src/"))
 sys.path.append(src_path)
 
-from camera_thread.rs_thread import CameraThreadRS
+from camera_thread.rs_thread import CameraThreadRS  # type: ignore
 
 
 def test_threads_rs():
@@ -28,11 +28,12 @@ def test_threads_rs():
             close_threads,
             barrier,
             data_barrier,
+            data_barrier,
         )
         threads[camera_id].start()
 
     # sleep for a while
-    sleep(20)
+    sleep(10)
     close_threads.set()
 
     # check results

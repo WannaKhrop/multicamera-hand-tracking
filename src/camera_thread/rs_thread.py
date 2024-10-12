@@ -16,7 +16,7 @@ import pyrealsense2 as rs
 
 # models
 from hand_recognition.HolisticLandmarker import HolisticLandmarker
-from hand_recognition.hand_recognizer import extract_landmarks
+from hand_recognition.hand_recognizer import extract_landmarks, draw_landmarks_holistics
 from utils.utils import make_video
 from utils.constants import DATA_WAIT_TIME, CAMERA_WAIT_TIME
 
@@ -47,7 +47,8 @@ class CameraThreadRS(Thread):
         int, str, dict[str, pd.DataFrame], np.ndarray, rs.pyrealsense2.intrinsics
     ] | tuple[None, None, None, None, None] = None, None, None, None, None
     barrier: Barrier
-    data_barrier: Barrier
+    read_started: Barrier
+    read_finished: Barrier
     locker: Lock
 
     def __init__(
@@ -56,7 +57,8 @@ class CameraThreadRS(Thread):
         camera_id: str,
         close_event: Event,
         barrier: Barrier,
-        data_barrier: Barrier,
+        read_started: Barrier,
+        read_finished: Barrier,
     ):
         """Initialize a new instance of RS-Thread for a camera."""
         Thread.__init__(self)
@@ -69,7 +71,8 @@ class CameraThreadRS(Thread):
         self.locker = Lock()
         self.close_event = close_event
         self.barrier = barrier
-        self.data_barrier = data_barrier
+        self.read_started = read_started
+        self.read_finished = read_finished
 
     def run(self):
         """
@@ -87,26 +90,28 @@ class CameraThreadRS(Thread):
             # get time stamp
             time_stamp = int(time() * 1000)
 
+            # give time for other threads but not to much
+            if not self.syncronize():
+                print("Camera-Barrier is broken. Processing impossible.")
+                self.close_event.set()
+                break
+
             # run mediapipe
             mp_results = holistic_landmarker.process_image(
                 holistic_landmarker, color_frame
             )
             detected_hands = extract_landmarks(mp_results=mp_results)
 
-            # for debugging only !!!!
-            # draw_landmarks_holistics(color_frame, mp_results.left_hand_landmarks)
-            # draw_landmarks_holistics(color_frame, mp_results.right_hand_landmarks)
-            # self.frames.append(color_frame)
-
             # give time for other threads but not to much
-            try:
-                self.barrier.wait(timeout=CAMERA_WAIT_TIME)
-            except BrokenBarrierError:
-                print(
-                    "Camera-Barrier is broken, proceeding without synchronization is impossible."
-                )
+            if not self.syncronize():
+                print("Camera-Barrier is broken. Processing impossible.")
                 self.close_event.set()
                 break
+
+            # for debugging only !!!!
+            self.frames.append(color_frame)
+            draw_landmarks_holistics(color_frame, mp_results.left_hand_landmarks)
+            draw_landmarks_holistics(color_frame, mp_results.right_hand_landmarks)
 
             # if there is something, add it
             with self.locker:
@@ -121,21 +126,28 @@ class CameraThreadRS(Thread):
                 else:
                     self.target = None, None, None, None, None
 
-            # show that thread has provided data !!!
+            # show that thread has provided data
             try:
-                self.data_barrier.wait(timeout=DATA_WAIT_TIME)
+                self.read_started.wait(timeout=DATA_WAIT_TIME)
             except BrokenBarrierError:
-                print(
-                    "Data-Barrier is broken, proceeding without synchronization is impossible."
-                )
                 self.close_event.set()
-                break
+                continue
+
+            # wait untill data is read
+            try:
+                self.read_finished.wait(timeout=DATA_WAIT_TIME)
+            except BrokenBarrierError:
+                self.close_event.set()
+                continue
 
         # stop camera
         self.camera.stop()
 
         # for debugging only !!!!
         self.make_video()
+
+        # report finish !!!
+        print(f"Thread {self.camera.device_id} is stopped")
 
     def make_video(self):
         """Create video from frames."""
@@ -149,12 +161,23 @@ class CameraThreadRS(Thread):
     ):  # type: ignore
         """Return latest frame possible."""
         with self.locker:
-            if hasattr(self, "target"):
-                temp_value = self.target
-                self.target = None, None, None, None, None
-                return temp_value
-            else:
-                return None, None, None, None, None
+            return self.target
+
+    def syncronize(self) -> bool:
+        """
+        Syncronize all threads in one point.
+
+        Returns
+        -------
+        bool
+            True - threads are syncronized
+            False - error
+        """
+        try:
+            self.barrier.wait(timeout=CAMERA_WAIT_TIME)
+            return True
+        except BrokenBarrierError:
+            return False
 
     @classmethod
     def returnCameraIndexes(cls) -> list[tuple[str, str]]:

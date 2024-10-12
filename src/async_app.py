@@ -29,8 +29,11 @@ assert len(available_cameras) > 0, "Please connect a camera !"
 # Set up event and threads
 close_threads = Event()  # to close threads
 camera_barrier = Barrier(parties=len(available_cameras))  # just all cameras
-data_barrier = Barrier(
-    parties=len(available_cameras) + 1
+read_started = Barrier(
+    parties=(len(available_cameras) + 1)
+)  # all cameras + one processing thread !!!
+read_finished = Barrier(
+    parties=(len(available_cameras) + 1)
 )  # all cameras + one processing thread !!!
 
 # Camera threads initialization
@@ -40,7 +43,8 @@ threads = {
         camera_id=camera_id,
         close_event=close_threads,
         barrier=camera_barrier,
-        data_barrier=data_barrier,
+        read_started=read_started,
+        read_finished=read_finished,
     )
     for camera_name, camera_id in available_cameras
 }
@@ -50,7 +54,8 @@ fusion_thread = FusionThread(
     stop_thread=close_threads,
     sources=threads,
     merger=data_merger,
-    data_barrier=data_barrier,
+    read_started=read_started,
+    read_finished=read_finished,
 )
 
 # Dash app initialization
@@ -70,7 +75,7 @@ app.layout = html.Div(
                 "align-items": "center",  # Center vertically
             },
         ),
-        dcc.Interval(id="interval-component", interval=75, n_intervals=0),
+        dcc.Interval(id="interval-component", interval=150, n_intervals=0),
         html.Button("Start Threads", id="start-button", n_clicks=0),
         html.Button("Stop Threads", id="stop-button", n_clicks=0),
     ]
@@ -86,7 +91,7 @@ custom_layout = go.Layout(
         xaxis_title="X Axis",
         yaxis_title="Y Axis",
         zaxis_title="Z Axis",
-        xaxis=dict(range=(-1.0, 1.0), autorange=False),  # Set the x-axis limit
+        xaxis=dict(range=(0.0, 2.0), autorange=False),  # Set the x-axis limit
         yaxis=dict(range=(-1.0, 1.0), autorange=False),  # Set the y-axis limit
         zaxis=dict(range=(0.0, 1.0), autorange=False),  # Set the z-axis limit
         camera=dict(eye=dict(x=1.0, y=1.0, z=1.0)),
