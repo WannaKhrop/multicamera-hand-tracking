@@ -28,7 +28,6 @@ def test_threads_rs():
             close_threads,
             barrier,
             data_barrier,
-            data_barrier,
         )
         threads[camera_id].start()
 

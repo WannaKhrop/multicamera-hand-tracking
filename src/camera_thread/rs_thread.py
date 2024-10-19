@@ -16,7 +16,7 @@ import pyrealsense2 as rs
 
 # models
 from hand_recognition.HolisticLandmarker import HolisticLandmarker
-from hand_recognition.hand_recognizer import extract_landmarks, draw_landmarks_holistics
+from hand_recognition.hand_recognizer import extract_landmarks
 from utils.utils import make_video
 from utils.constants import DATA_WAIT_TIME, CAMERA_WAIT_TIME
 
@@ -47,8 +47,7 @@ class CameraThreadRS(Thread):
         int, str, dict[str, pd.DataFrame], np.ndarray, rs.pyrealsense2.intrinsics
     ] | tuple[None, None, None, None, None] = None, None, None, None, None
     barrier: Barrier
-    read_started: Barrier
-    read_finished: Barrier
+    data_barrier: Barrier
     locker: Lock
 
     def __init__(
@@ -57,8 +56,7 @@ class CameraThreadRS(Thread):
         camera_id: str,
         close_event: Event,
         barrier: Barrier,
-        read_started: Barrier,
-        read_finished: Barrier,
+        data_barrier: Barrier,
     ):
         """Initialize a new instance of RS-Thread for a camera."""
         Thread.__init__(self)
@@ -71,8 +69,7 @@ class CameraThreadRS(Thread):
         self.locker = Lock()
         self.close_event = close_event
         self.barrier = barrier
-        self.read_started = read_started
-        self.read_finished = read_finished
+        self.data_barrier = data_barrier
 
     def run(self):
         """
@@ -109,9 +106,9 @@ class CameraThreadRS(Thread):
                 break
 
             # for debugging only !!!!
-            self.frames.append(color_frame)
-            draw_landmarks_holistics(color_frame, mp_results.left_hand_landmarks)
-            draw_landmarks_holistics(color_frame, mp_results.right_hand_landmarks)
+            # self.frames.append(color_frame)
+            # draw_landmarks_holistics(color_frame, mp_results.left_hand_landmarks)
+            # draw_landmarks_holistics(color_frame, mp_results.right_hand_landmarks)
 
             # if there is something, add it
             with self.locker:
@@ -128,14 +125,7 @@ class CameraThreadRS(Thread):
 
             # show that thread has provided data
             try:
-                self.read_started.wait(timeout=DATA_WAIT_TIME)
-            except BrokenBarrierError:
-                self.close_event.set()
-                continue
-
-            # wait untill data is read
-            try:
-                self.read_finished.wait(timeout=DATA_WAIT_TIME)
+                self.data_barrier.wait(timeout=DATA_WAIT_TIME)
             except BrokenBarrierError:
                 self.close_event.set()
                 continue
@@ -143,7 +133,7 @@ class CameraThreadRS(Thread):
         # stop camera
         self.camera.stop()
 
-        # for debugging only !!!!
+        # create video that was actually caprured
         self.make_video()
 
         # report finish !!!

@@ -7,6 +7,7 @@ Data: 08.08.2024
 # basic imports
 from threading import Thread, Event, Barrier, BrokenBarrierError
 import numpy as np
+from typing import Any
 
 # other imports
 from camera_thread.rs_thread import CameraThreadRS
@@ -35,24 +36,21 @@ class FusionThread(Thread):
     sources: dict[str, CameraThreadRS]
     merger: DataMerger
     transformer: CoordinateTransformer = CoordinateTransformer()
-    read_started: Barrier
-    read_finished: Barrier
+    data_barrier: Barrier
 
     def __init__(
         self,
         stop_thread: Event,
         sources: dict[str, CameraThreadRS],
         merger: DataMerger,
-        read_started: Barrier,
-        read_finished: Barrier,
+        data_barrier: Barrier,
     ):
         """Initialize a new instance of Thread."""
         Thread.__init__(self)
         self.stop_thread = stop_thread
         self.sources = sources
         self.merger = merger
-        self.read_started = read_started
-        self.read_finished = read_finished
+        self.data_barrier = data_barrier
 
     def run(self):
         """Run thread and process results."""
@@ -60,35 +58,29 @@ class FusionThread(Thread):
         while not self.stop_thread.is_set():
             # give time for other threads and wait for data
             try:
-                self.read_started.wait(timeout=DATA_WAIT_TIME)
+                self.data_barrier.wait(timeout=DATA_WAIT_TIME)
             except BrokenBarrierError:
                 self.stop_thread.set()
                 continue
 
             # read data
-            self.data = [self.sources[source].get_frame() for source in self.sources]
-
-            # tell other threads to start working
-            try:
-                self.read_finished.wait(timeout=DATA_WAIT_TIME)
-            except BrokenBarrierError:
-                self.stop_thread.set()
-                continue
+            data = [self.sources[source].get_frame() for source in self.sources]
 
             # if there is a source with new data
-            self.process_sources(self)
+            self.process_sources(self, data)
 
         # report finish !!!
         print("Fusion thread is stopped")
 
     @TimeChecker
-    def process_sources(self):
+    def process_sources(self, data: list[tuple[Any, Any, Any, Any, Any]]):
         """Go over all sources, get the latest results and fuse them."""
         # collect data from threads
-        for timestamp, source, detected_hands, depth_frame, intrinsics in self.data:
+        for timestamp, source, detected_hands, depth_frame, intrinsics in data:
             # if no results, then just next source
             if (
                 timestamp is None
+                or source is None
                 or detected_hands is None
                 or depth_frame is None
                 or intrinsics is None
@@ -132,7 +124,6 @@ class FusionThread(Thread):
                     # make fusion
                     self.merger.add_time_frame(timestamp, source, detected_hands)
 
-        # do fusion
-        if len(self.data) > 0:
+        # do fusion as all processes are finished
+        if len(data) > 0:
             self.merger.make_fusion(self.merger)
-        self.data = list()

@@ -29,7 +29,7 @@ assert len(available_cameras) > 0, "Please connect a camera !"
 # Set up event and threads
 close_threads = Event()  # to close threads
 camera_barrier = Barrier(parties=len(available_cameras))  # just all cameras
-read_started = Barrier(
+data_barrier = Barrier(
     parties=(len(available_cameras) + 1)
 )  # all cameras + one processing thread !!!
 read_finished = Barrier(
@@ -43,8 +43,7 @@ threads = {
         camera_id=camera_id,
         close_event=close_threads,
         barrier=camera_barrier,
-        read_started=read_started,
-        read_finished=read_finished,
+        data_barrier=data_barrier,
     )
     for camera_name, camera_id in available_cameras
 }
@@ -54,14 +53,13 @@ fusion_thread = FusionThread(
     stop_thread=close_threads,
     sources=threads,
     merger=data_merger,
-    read_started=read_started,
-    read_finished=read_finished,
+    data_barrier=data_barrier,
 )
 
 # Dash app initialization
 app = dash.Dash(__name__)
 # do now show logging data
-app.enable_dev_tools(dev_tools_silence_routes_logging=True)
+# app.enable_dev_tools(dev_tools_silence_routes_logging=True)
 
 # Layout
 app.layout = html.Div(
