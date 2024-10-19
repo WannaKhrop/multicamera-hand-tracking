@@ -70,7 +70,7 @@ app.layout = html.Div(
                 "align-items": "center",  # Center vertically
             },
         ),
-        dcc.Interval(id="interval-component", interval=75, n_intervals=0),
+        dcc.Interval(id="interval-component", interval=125, n_intervals=0),
         html.Button("Start Threads", id="start-button", n_clicks=0),
         html.Button("Stop Threads", id="stop-button", n_clicks=0),
     ]
@@ -86,12 +86,12 @@ custom_layout = go.Layout(
         xaxis_title="X Axis",
         yaxis_title="Y Axis",
         zaxis_title="Z Axis",
-        xaxis=dict(range=(-1.0, 1.0), autorange=False),  # Set the x-axis limit
+        xaxis=dict(range=(0.0, 2.0), autorange=False),  # Set the x-axis limit
         yaxis=dict(range=(-1.0, 1.0), autorange=False),  # Set the y-axis limit
-        zaxis=dict(range=(0.0, 2.0), autorange=False),  # Set the z-axis limit
-        camera=dict(eye=dict(x=1.0, y=1.0, z=2.0)),
+        zaxis=dict(range=(0.0, 0.5), autorange=False),  # Set the z-axis limit
+        camera=dict(eye=dict(x=1.0, y=1.0, z=0.5)),
         aspectmode="manual",  # Fixes the aspect ratio
-        aspectratio=dict(x=1, y=1, z=1),  # Ensures aspect ratio remains constant
+        aspectratio=dict(x=1.0, y=1.0, z=2.0),  # Ensures aspect ratio remains constant
     ),
     margin=dict(l=0, r=0, t=0, b=0),  # Tight margins for better visualization
 )

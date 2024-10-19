@@ -20,7 +20,6 @@ from camera_thread.camera import camera
 import pyrealsense2 as rs
 
 from utils.constants import CAMERA_RESOLUTION_HEIGHT, CAMERA_RESOLUTION_WIDTH
-from utils.geometry import assign_visibility
 
 
 def to_numpy_ndarray(landmarks: landmark_pb2.NormalizedLandmarkList):
@@ -144,7 +143,7 @@ def convert_hand(
     landmarks = hand_to_df(to_numpy_ndarray(holistic_landmarks))
 
     # visibility
-    assign_visibility(landmarks)
+    # assign_visibility(landmarks)
 
     return landmarks
 

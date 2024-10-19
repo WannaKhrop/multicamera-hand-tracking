@@ -16,7 +16,7 @@ import pyrealsense2 as rs
 
 # models
 from hand_recognition.HolisticLandmarker import HolisticLandmarker
-from hand_recognition.hand_recognizer import extract_landmarks
+from hand_recognition.hand_recognizer import extract_landmarks, draw_landmarks_holistics
 from utils.utils import make_video
 from utils.constants import DATA_WAIT_TIME, CAMERA_WAIT_TIME
 
@@ -94,9 +94,9 @@ class CameraThreadRS(Thread):
             detected_hands = extract_landmarks(mp_results=mp_results)
 
             # for debugging only !!!!
-            # draw_landmarks_holistics(color_frame, mp_results.left_hand_landmarks)
-            # draw_landmarks_holistics(color_frame, mp_results.right_hand_landmarks)
-            # self.frames.append(color_frame)
+            self.frames.append(color_frame)
+            draw_landmarks_holistics(color_frame, mp_results.left_hand_landmarks)
+            draw_landmarks_holistics(color_frame, mp_results.right_hand_landmarks)
 
             # give time for other threads but not to much
             try:
