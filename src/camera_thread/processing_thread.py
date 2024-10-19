@@ -82,6 +82,7 @@ class FusionThread(Thread):
             # if no results, then just next source
             if (
                 timestamp is None
+                or source is None
                 or detected_hands is None
                 or depth_frame is None
                 or intrinsics is None
@@ -122,4 +123,6 @@ class FusionThread(Thread):
                     self.merger.add_time_frame(timestamp, source, detected_hands)
 
                 # do fusion
-                self.merger.make_fusion(self.merger)
+
+        if len(data) > 0:
+            self.merger.make_fusion(self.merger)

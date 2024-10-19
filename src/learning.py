@@ -5,11 +5,10 @@ Author: Ivan Khrop
 Date: 24.09.2024
 """
 
-from keras import layers, models, regularizers
+from keras import layers, models, regularizers, optimizers
 from sklearn.model_selection import KFold
 import numpy as np
 from utils.constants import PATH_TO_DATA_FOLDER, PATH_TO_DNN_MODEL
-from utils.utils import CustomLoss
 
 
 # Define the neural network model
@@ -19,18 +18,19 @@ def create_model(in_shape: int, out_shape: int):
     # Input layer
     model.add(layers.InputLayer(input_shape=(in_shape,)))
 
-    # hidden
-    model.add(
-        layers.Dense(168, activation="tanh", kernel_regularizer=regularizers.l2(1e-4))
-    )
-
     # Output layer
-    model.add(layers.Dense(out_shape, kernel_regularizer=regularizers.l2(1e-4)))
+    model.add(
+        layers.Dense(
+            out_shape, kernel_regularizer=regularizers.l2(1e-3), use_bias=False
+        )
+    )
     model.add(layers.LeakyReLU(alpha=0.2))
 
     # Compile the model using MAE + LOGCOSH as the loss function
     model.compile(
-        optimizer="adam", loss=CustomLoss(weight=0.50), metrics=["mae", "logcosh"]
+        optimizer=optimizers.Adam(learning_rate=1e-4),
+        loss="logcosh",
+        metrics=["mae", "logcosh"],
     )
 
     return model
@@ -49,7 +49,7 @@ model = create_model(in_shape=X.shape[1], out_shape=y.shape[1])
 model.summary()
 
 # Define the number of splits for K-Fold Cross-Validation
-kf = KFold(n_splits=5, shuffle=True, random_state=42)  # 10-fold cross-validation
+kf = KFold(n_splits=5, shuffle=True)  # 10-fold cross-validation
 
 # Store validation results
 fold_results: list[float] = list()
@@ -71,8 +71,8 @@ for fold, (train_idx, val_idx) in enumerate(kf.split(X)):
         X_train,
         y_train,
         validation_data=(X_val, y_val),
-        epochs=20,
-        batch_size=16,
+        epochs=40,
+        batch_size=32,
         verbose=1,
     )
 
@@ -89,5 +89,5 @@ print(f"Cross-Validation results: Mean MAE = {mean_mae}, Std MAE = {std_mae}")
 
 # Create a new instance of the model
 model = create_model(in_shape=X.shape[1], out_shape=y.shape[1])
-model.fit(X, y, epochs=40, batch_size=16, verbose=1, shuffle=True)
+model.fit(X, y, epochs=80, batch_size=32, verbose=1, shuffle=True)
 model.save(PATH_TO_DNN_MODEL)
