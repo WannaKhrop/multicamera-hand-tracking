@@ -23,7 +23,9 @@ def test_fusion():
     )
 
     # apply function
-    result = landmarks_fusion(world_coordinates=[landmarks1, landmarks2])
+    result = landmarks_fusion(
+        world_coordinates=[landmarks1, landmarks2], softmax_const=50.0
+    )
 
     # define true answer
     real_answer = pd.DataFrame(

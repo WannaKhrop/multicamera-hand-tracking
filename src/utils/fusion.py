@@ -90,9 +90,9 @@ class DataMerger:
     def make_fusion(self):
         """Make fusion for current state."""
         # debug
-        for point in self.points:
-            print(point[0], point[1])
-        print(60 * "=")
+        # for point in self.points:
+        #    print(point[0], point[1])
+        # print(60 * "=")
 
         # go over all points and get the number of hands
         hands = set(["Left", "Right"])

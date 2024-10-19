@@ -59,7 +59,7 @@ fusion_thread = FusionThread(
 # Dash app initialization
 app = dash.Dash(__name__)
 # do now show logging data
-# app.enable_dev_tools(dev_tools_silence_routes_logging=True)
+app.enable_dev_tools(dev_tools_silence_routes_logging=True)
 
 # Layout
 app.layout = html.Div(
@@ -89,7 +89,7 @@ custom_layout = go.Layout(
         xaxis_title="X Axis",
         yaxis_title="Y Axis",
         zaxis_title="Z Axis",
-        xaxis=dict(range=(0.0, 2.0), autorange=False),  # Set the x-axis limit
+        xaxis=dict(range=(-1.0, 1.0), autorange=False),  # Set the x-axis limit
         yaxis=dict(range=(-1.0, 1.0), autorange=False),  # Set the y-axis limit
         zaxis=dict(range=(0.0, 1.0), autorange=False),  # Set the z-axis limit
         camera=dict(eye=dict(x=1.0, y=1.0, z=1.0)),

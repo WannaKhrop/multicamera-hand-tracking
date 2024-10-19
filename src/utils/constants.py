@@ -47,7 +47,7 @@ CAMERA_RESOLUTION_WIDTH = 1920
 CAMERA_RESOLUTION_HEIGHT = 1080
 
 # softmax parameter to make fusion
-SOFTMAX_PARAM = 50.0
+SOFTMAX_PARAM = 1.0
 
 # time delay parameter
 # each timestamp is time() * 1000.

@@ -16,6 +16,7 @@ from utils.fusion import DataMerger
 from hand_recognition.hand_recognizer import convert_to_features, retrieve_from_depths
 from utils.utils import TimeChecker
 from utils.constants import DATA_WAIT_TIME
+from utils.geometry import assign_visibility
 
 
 class FusionThread(Thread):
@@ -113,6 +114,10 @@ class FusionThread(Thread):
                         depths=depths,
                         intrinsics=intrinsics,
                     )
+
+                    # assign visibility
+                    assign_visibility(detected_hands[hand])
+
                     # world coords
                     detected_hands[hand].loc[
                         :, axes

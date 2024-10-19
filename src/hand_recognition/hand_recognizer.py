@@ -20,7 +20,6 @@ from camera_thread.camera import camera
 import pyrealsense2 as rs
 
 from utils.constants import CAMERA_RESOLUTION_HEIGHT, CAMERA_RESOLUTION_WIDTH
-from utils.geometry import assign_visibility
 
 
 def to_numpy_ndarray(landmarks: landmark_pb2.NormalizedLandmarkList):
@@ -128,7 +127,7 @@ def convert_hand(
     holistic_landmarks: landmark_pb2.NormalizedLandmarkList,
 ) -> pd.DataFrame:
     """
-    Coverts results of holistic landmark-detection to pandas dataframe and assign visibility.
+    Coverts results of holistic landmark-detection to pandas dataframe.
 
     Parameters
     ----------
@@ -138,13 +137,10 @@ def convert_hand(
     Returns
     -------
     pd.DataFrame
-        DataFrame with camera coordinates and visibility like: [x, y, z, visibility]
+        DataFrame with camera coordinates and visibility like: [x, y, z]
     """
     # get normalized landmarks
     landmarks = hand_to_df(to_numpy_ndarray(holistic_landmarks))
-
-    # visibility
-    assign_visibility(landmarks)
 
     return landmarks
 
