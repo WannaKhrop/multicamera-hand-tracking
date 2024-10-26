@@ -37,7 +37,7 @@ class FusionThread(Thread):
     sources: dict[str, CameraThreadRS]
     merger: DataMerger
     transformer: CoordinateTransformer = CoordinateTransformer()
-    ml_detector: MedapipeWorldTransformer = MedapipeWorldTransformer()
+    ml_detectors: dict[str, MedapipeWorldTransformer]
     data_barrier: Barrier
 
     def __init__(
@@ -53,6 +53,11 @@ class FusionThread(Thread):
         self.sources = sources
         self.merger = merger
         self.data_barrier = data_barrier
+
+        # create ML Detectors
+        self.ml_detectors = dict()
+        for camera_id in sources:
+            self.ml_detectors[camera_id] = MedapipeWorldTransformer(camera_id=camera_id)
 
     def run(self):
         """Run thread and process results."""
@@ -92,7 +97,7 @@ class FusionThread(Thread):
 
             if len(detected_hands) > 0:
                 # process each hand
-                features = np.empty(shape=(0, 42))
+                features = np.empty(shape=(0, 84))
                 for hand in detected_hands:
                     # extract features
                     features_hand = convert_to_features(
@@ -101,7 +106,9 @@ class FusionThread(Thread):
                     features = np.vstack([features, features_hand])
 
                 # predict real depths using ml
-                hand_depths = self.ml_detector(self.ml_detector, features=features)
+                hand_depths = self.ml_detectors[source](
+                    self.ml_detectors[source], features=features
+                )
 
                 # convert to camera and then to world
                 axes = ["x", "y", "z"]

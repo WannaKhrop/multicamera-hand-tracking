@@ -14,10 +14,7 @@ import pyrealsense2 as rs
 
 # models
 from hand_recognition.HolisticLandmarker import HolisticLandmarker
-from hand_recognition.hand_recognizer import (
-    to_numpy_ndarray,
-    get_depth_data_from_pixel,
-)
+from hand_recognition.hand_recognizer import to_numpy_ndarray, get_depth_data_from_pixel
 from utils.utils import thread_safe
 from utils.constants import DISTACE_LIMIT
 
@@ -78,25 +75,25 @@ class MLCameraThreadRS(Thread):
             if mp_results.left_hand_landmarks is not None:
                 landmarks = to_numpy_ndarray(mp_results.left_hand_landmarks)
                 # get depth data
-                rel_depths, depths = MLCameraThreadRS.process_hand(
+                features, depths = MLCameraThreadRS.process_hand(
                     landmarks, depth_frame, intrinsics
                 )
                 depth_max, depth_min = np.max(depths), np.min(depths)
                 # check if depths are well assigned
                 if (depths > 1e-3).all() and (depth_max - depth_min) < DISTACE_LIMIT:
-                    self.target.append((rel_depths, depths))
+                    self.target.append((features, depths))
 
             # for each hand get depths and
             if mp_results.right_hand_landmarks is not None:
                 landmarks = to_numpy_ndarray(mp_results.right_hand_landmarks)
                 # get depth data
-                rel_depths, depths = MLCameraThreadRS.process_hand(
+                features, depths = MLCameraThreadRS.process_hand(
                     landmarks, depth_frame, intrinsics
                 )
                 depth_max, depth_min = np.max(depths), np.min(depths)
                 # check if depths are well assigned
                 if (depths > 1e-3).all() and (depth_max - depth_min) < DISTACE_LIMIT:
-                    self.target.append((rel_depths, depths))
+                    self.target.append((features, depths))
 
             # report
             report(self.thread_cam.device_id, len(self.target))
@@ -112,9 +109,8 @@ class MLCameraThreadRS(Thread):
     ):
         # get depth data
         depths = MLCameraThreadRS.get_depth_data(landmarks, depth_frame, intrinsics)
-        relative_depths = landmarks[:, 2]
 
-        return (relative_depths, depths)
+        return (landmarks.reshape(-1), depths)
 
     @staticmethod
     def get_depth_data(

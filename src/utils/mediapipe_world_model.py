@@ -9,28 +9,28 @@ import numpy as np
 from utils.constants import PATH_TO_DNN_MODEL
 from utils.utils import TimeChecker  # , CustomLoss
 
-# from keras.models import load_model
-import joblib
+from keras.models import load_model
 from typing import Any
 
 
 class MedapipeWorldTransformer:
     model: Any
+    camera_id: str
 
-    def __init__(self):
+    def __init__(self, camera_id: str):
         """Crea a new instance from file."""
-        PATH_TO_MODEL = PATH_TO_DNN_MODEL.joinpath(
-            "multi_output_gb_regressor.joblib"
-        )  # joinpath("mediapipe_world_model.h5")
-        # self.model = load_model(
-        #    filepath=PATH_TO_MODEL, custom_objects={"CustomLoss": CustomLoss}
-        # )
-        self.model = joblib.load(PATH_TO_MODEL)
+        PATH_TO_MODEL = PATH_TO_DNN_MODEL.joinpath(f"{camera_id}.h5")
+        # joinpath(
+        #    f"{camera_id}.joblib"
+        # )  #
+        self.model = load_model(filepath=PATH_TO_MODEL)
+        self.camera_id = camera_id
+        # self.model = joblib.load(PATH_TO_MODEL)
 
     @TimeChecker
     def __call__(self, features: np.ndarray) -> tf.Tensor | np.ndarray:
-        # return self.predict(features)
-        return self.model.predict(features)
+        return self.predict(features)
+        # return self.model.predict(features)
 
     @tf.function(jit_compile=True)
     def predict(self, features: np.ndarray) -> tf.Tensor:

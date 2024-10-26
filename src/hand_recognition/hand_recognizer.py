@@ -164,7 +164,7 @@ def convert_to_features(landmarks: pd.DataFrame, depth_frame: np.ndarray) -> np.
     np.ndarray
         Features as vector.
     """
-    # get coordinates and identifz the closest point to the camera
+    # get coordinates and identify the closest point to the camera
     depths: list[float] = list()
     x = (landmarks.x.values * CAMERA_RESOLUTION_WIDTH).astype(int)
     y = (landmarks.y.values * CAMERA_RESOLUTION_HEIGHT).astype(int)
@@ -176,7 +176,7 @@ def convert_to_features(landmarks: pd.DataFrame, depth_frame: np.ndarray) -> np.
         depths.append(depth)
 
     # constuct features
-    return np.hstack([landmarks.z.values, np.array(depths)])
+    return np.hstack([landmarks.values.reshape(-1), np.array(depths)])
 
 
 def retrieve_from_depths(
