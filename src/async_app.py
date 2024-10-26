@@ -91,8 +91,8 @@ custom_layout = go.Layout(
         zaxis_title="Z Axis",
         xaxis=dict(range=(-1.0, 1.0), autorange=False),  # Set the x-axis limit
         yaxis=dict(range=(-1.0, 1.0), autorange=False),  # Set the y-axis limit
-        zaxis=dict(range=(0.0, 1.0), autorange=False),  # Set the z-axis limit
-        camera=dict(eye=dict(x=1.0, y=1.0, z=1.0)),
+        zaxis=dict(range=(0.0, 0.5), autorange=False),  # Set the z-axis limit
+        camera=dict(eye=dict(x=1.0, y=1.0, z=0.5)),
         aspectmode="manual",  # Fixes the aspect ratio
         aspectratio=dict(x=1, y=1, z=1),  # Ensures aspect ratio remains constant
     ),

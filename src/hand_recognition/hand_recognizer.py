@@ -142,6 +142,9 @@ def convert_hand(
     # get normalized landmarks
     landmarks = hand_to_df(to_numpy_ndarray(holistic_landmarks))
 
+    # visibility
+    # assign_visibility(landmarks)
+
     return landmarks
 
 
