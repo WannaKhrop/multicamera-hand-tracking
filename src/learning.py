@@ -4,8 +4,16 @@ Module can help to learn neural network to predict targets from features.
 Author: Ivan Khrop
 Date: 24.09.2024
 """
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.multioutput import MultiOutputRegressor
+from sklearn.model_selection import cross_val_score
+import numpy as np
+from utils.constants import PATH_TO_DATA_FOLDER, PATH_TO_DNN_MODEL
+import joblib
 
+"""
 from keras import layers, models, regularizers, optimizers
+import tensorflow as tf
 from sklearn.model_selection import KFold
 import numpy as np
 from utils.constants import PATH_TO_DATA_FOLDER, PATH_TO_DNN_MODEL
@@ -18,13 +26,11 @@ def create_model(in_shape: int, out_shape: int):
     # Input layer
     model.add(layers.InputLayer(input_shape=(in_shape,)))
 
-    # Output layer
-    model.add(
-        layers.Dense(
-            out_shape, kernel_regularizer=regularizers.l2(1e-3), use_bias=False
-        )
-    )
-    model.add(layers.LeakyReLU(alpha=0.2))
+    # Hidden layer
+    model.add(layers.Dense(128, activation='relu'))
+    model.add(layers.Lambda(lambda x: tf.reduce_sum(x, axis=1, keepdims=True)))
+
+    model.add(layers.Dense(out_shape, activation='linear'))
 
     # Compile the model using MAE + LOGCOSH as the loss function
     model.compile(
@@ -71,7 +77,7 @@ for fold, (train_idx, val_idx) in enumerate(kf.split(X)):
         X_train,
         y_train,
         validation_data=(X_val, y_val),
-        epochs=40,
+        epochs=100,
         batch_size=32,
         verbose=1,
     )
@@ -89,5 +95,45 @@ print(f"Cross-Validation results: Mean MAE = {mean_mae}, Std MAE = {std_mae}")
 
 # Create a new instance of the model
 model = create_model(in_shape=X.shape[1], out_shape=y.shape[1])
-model.fit(X, y, epochs=80, batch_size=32, verbose=1, shuffle=True)
+model.fit(X, y, epochs=150, batch_size=32, verbose=1, shuffle=True)
 model.save(PATH_TO_DNN_MODEL)
+"""
+
+# Example data for training (just for demonstration)
+X = np.load(str(PATH_TO_DATA_FOLDER.joinpath("features.npy")))
+y = np.load(str(PATH_TO_DATA_FOLDER.joinpath("targets.npy")))
+
+# Initialize the base regressor (GradientBoostingRegressor)
+base_regressor = GradientBoostingRegressor(
+    n_estimators=100, learning_rate=0.01, max_depth=3, verbose=2
+)
+
+# Wrap the base regressor in MultiOutputRegressor for multivariate regression
+multi_output_gbr = MultiOutputRegressor(base_regressor)
+
+# Perform K-fold cross-validation
+k = 5  # Number of folds
+scores = cross_val_score(
+    estimator=MultiOutputRegressor(
+        GradientBoostingRegressor(
+            n_estimators=100, learning_rate=0.01, max_depth=3, verbose=2
+        )
+    ),
+    X=X,
+    y=y,
+    cv=k,
+    scoring="r2",
+)
+
+# Print the cross-validation scores
+print(f"K-fold cross-validation scores (R^2) for each fold: {scores}")
+print(f"Mean R^2 score: {scores.mean()}")
+
+# train model
+multi_output_gbr.fit(X, y)
+
+# save results
+model_filename = PATH_TO_DNN_MODEL.joinpath("multi_output_gb_regressor.joblib")
+joblib.dump(multi_output_gbr, model_filename)
+
+print(f"Model saved to {model_filename}")

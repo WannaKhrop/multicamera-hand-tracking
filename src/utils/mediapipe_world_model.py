@@ -4,26 +4,33 @@ Module contains class that uses trained neural network to convert normalized lan
 Author: Ivan Khrop
 Date: 23.09.2024
 """
-
-from keras.models import load_model, Sequential
 import tensorflow as tf
 import numpy as np
 from utils.constants import PATH_TO_DNN_MODEL
-from utils.utils import TimeChecker, CustomLoss
+from utils.utils import TimeChecker  # , CustomLoss
+
+# from keras.models import load_model
+import joblib
+from typing import Any
 
 
 class MedapipeWorldTransformer:
-    model: Sequential
+    model: Any
 
     def __init__(self):
         """Crea a new instance from file."""
-        self.model = load_model(
-            filepath=PATH_TO_DNN_MODEL, custom_objects={"CustomLoss": CustomLoss}
-        )
+        PATH_TO_MODEL = PATH_TO_DNN_MODEL.joinpath(
+            "multi_output_gb_regressor.joblib"
+        )  # joinpath("mediapipe_world_model.h5")
+        # self.model = load_model(
+        #    filepath=PATH_TO_MODEL, custom_objects={"CustomLoss": CustomLoss}
+        # )
+        self.model = joblib.load(PATH_TO_MODEL)
 
     @TimeChecker
-    def __call__(self, features: np.ndarray) -> tf.Tensor:
-        return self.predict(features)
+    def __call__(self, features: np.ndarray) -> tf.Tensor | np.ndarray:
+        # return self.predict(features)
+        return self.model.predict(features)
 
     @tf.function(jit_compile=True)
     def predict(self, features: np.ndarray) -> tf.Tensor:

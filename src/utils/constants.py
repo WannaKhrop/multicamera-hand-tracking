@@ -22,10 +22,8 @@ PATH_TO_MODEL = (
     .joinpath("hand_landmarker.task")
 )  # path to model
 
-PATH_TO_DNN_MODEL = (
-    Path(__file__)
-    .parent.parent.parent.joinpath("models")
-    .joinpath("mediapipe_world_model.h5")
+PATH_TO_DNN_MODEL = Path(__file__).parent.parent.parent.joinpath(
+    "models"
 )  # path to model
 
 PATH_TO_DATA_FOLDER = Path(__file__).parent.parent.parent.joinpath(
@@ -47,7 +45,7 @@ CAMERA_RESOLUTION_WIDTH = 1920
 CAMERA_RESOLUTION_HEIGHT = 1080
 
 # softmax parameter to make fusion
-SOFTMAX_PARAM = 5.0
+SOFTMAX_PARAM = 1.0
 
 # time delay parameter
 # each timestamp is time() * 1000.

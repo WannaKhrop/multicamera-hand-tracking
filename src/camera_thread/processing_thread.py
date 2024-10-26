@@ -6,7 +6,6 @@ Data: 08.08.2024
 """
 # basic imports
 from threading import Thread, Event, Barrier, BrokenBarrierError
-from time import sleep
 import numpy as np
 
 # other imports
@@ -70,8 +69,6 @@ class FusionThread(Thread):
                 break
             # if there is a source with new data
             self.process_sources(self)
-            # sleep a bit
-            sleep(0.01)
 
         # write a report
         self.merger.fluctuation_report()
@@ -130,7 +127,6 @@ class FusionThread(Thread):
                     # make fusion
                     self.merger.add_time_frame(timestamp, source, detected_hands)
 
-                # do fusion
-
+        # do fusion
         if len(data) > 0:
             self.merger.make_fusion(self.merger)

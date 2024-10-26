@@ -90,9 +90,9 @@ class DataMerger:
     def make_fusion(self):
         """Make fusion for current state."""
         # debug
-        for point in self.points:
-            print(point[0], point[1])
-        print(60 * "=")
+        # for point in self.points:
+        #    print(point[0], point[1])
+        # print(60 * "=")
 
         # go over all points and get the number of hands
         hands = set(["Left", "Right"])
@@ -110,14 +110,6 @@ class DataMerger:
                 if hand in frame:
                     timestamp = max(timestamp, frame_timestamp)
                     world_coordinates.append(frame[hand])
-
-            """
-            if len(world_coordinates) > 1:
-                for marks, cam in zip(world_coordinates, self.points):
-                    print(cam[1])
-                    print(marks)
-                input("Visibility check >> ")
-            """
 
             # make fusion and save results
             if len(world_coordinates) > 0:

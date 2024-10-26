@@ -449,7 +449,7 @@ def is_between(point1, point2, target):
 
 
 def landmarks_fusion(
-    world_coordinates: list[pd.DataFrame], softmax_const: float = 50.0
+    world_coordinates: list[pd.DataFrame], softmax_const: float = 1.0
 ) -> pd.DataFrame:
     """
     Combine information from different cameras and get the resulting set of landmarks.
@@ -459,7 +459,7 @@ def landmarks_fusion(
     world_coordinates: list[pd.DataFrame]
         World coordinates with assignment of visibility for each landmark.
         Each DataFrame contains 21 row with columns = [x, y, z, visibility]
-    softmax_const: float = 20.0
+    softmax_const: float = 1.0
         Constant that is used for fusion to highlight large visibility.
 
     Returns
