@@ -101,7 +101,7 @@ class FusionThread(Thread):
                     # get argmin
                     argmin = np.argmin(np.abs(depths - min_depth))
                     # update_relative depths
-                    rel_depths = 1.0 + rel_depths - rel_depths[argmin]
+                    rel_depths = 1.05 + rel_depths - rel_depths[argmin]
                     # save new depths
                     hand_depths.append(rel_depths * min_depth)
 

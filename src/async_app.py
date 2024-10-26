@@ -73,7 +73,7 @@ app.layout = html.Div(
                 "align-items": "center",  # Center vertically
             },
         ),
-        dcc.Interval(id="interval-component", interval=150, n_intervals=0),
+        dcc.Interval(id="interval-component", interval=125, n_intervals=0),
         html.Button("Start Threads", id="start-button", n_clicks=0),
         html.Button("Stop Threads", id="stop-button", n_clicks=0),
     ]
