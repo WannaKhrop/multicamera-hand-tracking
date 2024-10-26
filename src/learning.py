@@ -105,7 +105,7 @@ y = np.load(str(PATH_TO_DATA_FOLDER.joinpath("targets.npy")))
 
 # Initialize the base regressor (GradientBoostingRegressor)
 base_regressor = GradientBoostingRegressor(
-    n_estimators=100, learning_rate=0.01, max_depth=3, verbose=2
+    n_estimators=150, learning_rate=0.01, max_depth=5
 )
 
 # Wrap the base regressor in MultiOutputRegressor for multivariate regression
@@ -115,9 +115,7 @@ multi_output_gbr = MultiOutputRegressor(base_regressor)
 k = 5  # Number of folds
 scores = cross_val_score(
     estimator=MultiOutputRegressor(
-        GradientBoostingRegressor(
-            n_estimators=100, learning_rate=0.01, max_depth=3, verbose=2
-        )
+        GradientBoostingRegressor(n_estimators=150, learning_rate=0.01, max_depth=5)
     ),
     X=X,
     y=y,
