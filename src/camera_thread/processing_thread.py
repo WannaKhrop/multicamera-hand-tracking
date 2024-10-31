@@ -76,7 +76,7 @@ class FusionThread(Thread):
             self.process_sources(self)
 
         # write a report
-        self.merger.fluctuation_report()
+        # self.merger.fluctuation_report()
 
     @TimeChecker
     def process_sources(self):
@@ -97,7 +97,7 @@ class FusionThread(Thread):
 
             if len(detected_hands) > 0:
                 # process each hand
-                features = np.empty(shape=(0, 84))
+                features = np.empty(shape=(0, 42))
                 for hand in detected_hands:
                     # extract features
                     features_hand = convert_to_features(

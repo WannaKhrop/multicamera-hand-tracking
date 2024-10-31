@@ -108,9 +108,10 @@ class MLCameraThreadRS(Thread):
         intrinsics: rs.pyrealsense2.intrinsics,
     ):
         # get depth data
+        rel_depths = landmarks[:, 2]
         depths = MLCameraThreadRS.get_depth_data(landmarks, depth_frame, intrinsics)
 
-        return (landmarks.reshape(-1), depths)
+        return (rel_depths, depths)
 
     @staticmethod
     def get_depth_data(

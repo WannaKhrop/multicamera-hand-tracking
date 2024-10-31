@@ -62,3 +62,7 @@ DATA_WAIT_TIME = 10.0  # 60.0 sec. Just for safety
 PROB_PARAM_ZERO = 0.05
 PROB_PARAM_DISANCE = 0.025
 DISTACE_LIMIT = 0.25
+
+# which ML Model to use in the current run
+ML_MODELS_AVAILABLE = ["KAN", "GB", "MLP"]
+ML_MODEL_USE = "KAN"  # possible values are "KAN", "GB", "MLP"

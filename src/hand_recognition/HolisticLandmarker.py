@@ -33,7 +33,7 @@ class HolisticLandmarker:
         # usage of holistics solution
         model = mp.solutions.holistic.Holistic(
             static_image_mode=False,  # we process static images, not stream
-            model_complexity=0,  # can be ignored, influences pose-model
+            model_complexity=2,  # can be ignored, influences pose-model
             enable_segmentation=False,  # no need to generate segmentation mask
             refine_face_landmarks=False,  # no interest in face landmarks in this solution
             min_detection_confidence=0.7,  # confidence in detection

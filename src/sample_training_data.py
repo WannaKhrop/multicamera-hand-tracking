@@ -78,19 +78,21 @@ def main():
     data_y = np.vstack(data_out)
 
     # we collect a lot of data all the time, so we can just add it in the existing file !!!
-    features = np.empty((0, data_x.shape[1]))
-    targets = np.empty((0, data_y.shape[1]))
+    features_arr = np.empty((0, data_x.shape[1]))
+    targets_arr = np.empty((0, data_y.shape[1]))
     # add new data and as vertical stack
-    features = np.vstack([features, data_x])
-    targets = np.vstack([targets, data_y])
+    features_arr = np.vstack([features_arr, data_x])
+    targets_arr = np.vstack([targets_arr, data_y])
 
     # print results
-    print(features.shape)
-    print(targets.shape)
+    print(features_arr.shape)
+    print(targets_arr.shape)
 
     # save data
-    np.save(str(PATH_TO_DATA_FOLDER.joinpath(f"{camera_id}_features.npy")), features)
-    np.save(str(PATH_TO_DATA_FOLDER.joinpath(f"{camera_id}_targets.npy")), targets)
+    np.save(
+        str(PATH_TO_DATA_FOLDER.joinpath(f"{camera_id}_features.npy")), features_arr
+    )
+    np.save(str(PATH_TO_DATA_FOLDER.joinpath(f"{camera_id}_targets.npy")), targets_arr)
 
 
 if __name__ == "__main__":

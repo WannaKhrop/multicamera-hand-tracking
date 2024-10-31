@@ -176,7 +176,7 @@ def convert_to_features(landmarks: pd.DataFrame, depth_frame: np.ndarray) -> np.
         depths.append(depth)
 
     # constuct features
-    return np.hstack([landmarks.values.reshape(-1), np.array(depths)])
+    return np.hstack([landmarks.z.values, np.array(depths)])
 
 
 def retrieve_from_depths(
