@@ -37,7 +37,7 @@ class MedapipeWorldTransformer:
                 # KAN
                 self.model = KAN.loadckpt(basic_path.joinpath("mark"))
                 self.model.eval()
-                self.scaler = joblib.load(filename=basic_path.joinpath("scaler.joblib"))
+                # self.scaler = joblib.load(filename=basic_path.joinpath("scaler.joblib"))
             case "MLP":
                 # tensorflow
                 self.model = load_model(filepath=basic_path.joinpath(f"{camera_id}.h5"))
