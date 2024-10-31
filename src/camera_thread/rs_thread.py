@@ -136,7 +136,7 @@ class CameraThreadRS(Thread):
         self.camera.stop()
 
         # create video that was actually caprured
-        self.make_video()
+        # self.make_video()
 
         # report finish !!!
         print(f"Thread {self.camera.device_id} is stopped")
