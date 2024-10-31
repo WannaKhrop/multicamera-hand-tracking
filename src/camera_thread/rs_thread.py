@@ -16,7 +16,10 @@ import pyrealsense2 as rs
 
 # models
 from hand_recognition.HolisticLandmarker import HolisticLandmarker
-from hand_recognition.hand_recognizer import extract_landmarks
+from hand_recognition.hand_recognizer import (
+    extract_landmarks,
+    # draw_landmarks_holistics
+)
 from utils.utils import make_video
 from utils.constants import DATA_WAIT_TIME, CAMERA_WAIT_TIME
 
