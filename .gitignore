@@ -2,8 +2,12 @@
 models/hand_landmarker.task
 models/pose_landmarker_lite.task
 
-# old files
-src/camera_thread/simple_thread.py
+# useless files
+.*cache
+.vscode
+
+# model folder with logs of KAN training
+model
 
 # compiled python and json files
 *.pyc

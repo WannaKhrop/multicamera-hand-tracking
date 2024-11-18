@@ -19,6 +19,9 @@ mediapipe = "0.10.14"
 tensorflow-io-gcs-filesystem = "0.31.0"
 tensorflow = "2.12"
 scikit-learn = "^1.5.2"
+pykan = "^0.2.7"
+torch = "^2.5.0"
+tqdm = "^4.66.6"
 
 
 [tool.poetry.group.dev.dependencies]

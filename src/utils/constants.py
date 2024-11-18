@@ -22,10 +22,8 @@ PATH_TO_MODEL = (
     .joinpath("hand_landmarker.task")
 )  # path to model
 
-PATH_TO_DNN_MODEL = (
-    Path(__file__)
-    .parent.parent.parent.joinpath("models")
-    .joinpath("mediapipe_world_model.h5")
+PATH_TO_DNN_MODEL = Path(__file__).parent.parent.parent.joinpath(
+    "models"
 )  # path to model
 
 PATH_TO_DATA_FOLDER = Path(__file__).parent.parent.parent.joinpath(
@@ -61,6 +59,10 @@ CAMERA_WAIT_TIME = 1.0  # 1.0 sec.
 DATA_WAIT_TIME = 10.0  # 60.0 sec. Just for safety
 
 # for ML data sampling
-PROB_PARAM_ZERO = 0.1
-PROB_PARAM_DISANCE = 0.05
+PROB_PARAM_ZERO = 0.05
+PROB_PARAM_DISANCE = 0.025
 DISTACE_LIMIT = 0.25
+
+# which ML Model to use in the current run
+ML_MODELS_AVAILABLE = ["KAN", "GB", "MLP", "HEURISTIC"]
+ML_MODEL_USE = "HEURISTIC"  # possible values are listed above

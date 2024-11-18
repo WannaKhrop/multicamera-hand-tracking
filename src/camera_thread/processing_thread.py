@@ -7,7 +7,6 @@ Data: 08.08.2024
 # basic imports
 from threading import Thread, Event, Barrier, BrokenBarrierError
 import numpy as np
-from typing import Any
 
 # other imports
 from camera_thread.rs_thread import CameraThreadRS
@@ -17,6 +16,7 @@ from hand_recognition.hand_recognizer import convert_to_features, retrieve_from_
 from utils.utils import TimeChecker
 from utils.constants import DATA_WAIT_TIME
 from utils.geometry import assign_visibility
+from utils.mediapipe_world_model import MedapipeWorldTransformer
 
 
 class FusionThread(Thread):
@@ -37,6 +37,7 @@ class FusionThread(Thread):
     sources: dict[str, CameraThreadRS]
     merger: DataMerger
     transformer: CoordinateTransformer = CoordinateTransformer()
+    ml_detectors: dict[str, MedapipeWorldTransformer]
     data_barrier: Barrier
 
     def __init__(
@@ -53,6 +54,11 @@ class FusionThread(Thread):
         self.merger = merger
         self.data_barrier = data_barrier
 
+        # create ML Detectors
+        self.ml_detectors = dict()
+        for camera_id in sources:
+            self.ml_detectors[camera_id] = MedapipeWorldTransformer(camera_id=camera_id)
+
     def run(self):
         """Run thread and process results."""
         # untill threads stopped
@@ -61,22 +67,23 @@ class FusionThread(Thread):
             try:
                 self.data_barrier.wait(timeout=DATA_WAIT_TIME)
             except BrokenBarrierError:
+                print(
+                    "Data-Barrier is broken, proceeding without synchronization is impossible."
+                )
                 self.stop_thread.set()
-                continue
-
-            # read data
-            data = [self.sources[source].get_frame() for source in self.sources]
-
+                break
             # if there is a source with new data
-            self.process_sources(self, data)
+            self.process_sources(self)
 
-        # report finish !!!
-        print("Fusion thread is stopped")
+        # write a report
+        # self.merger.fluctuation_report()
 
     @TimeChecker
-    def process_sources(self, data: list[tuple[Any, Any, Any, Any, Any]]):
+    def process_sources(self):
         """Go over all sources, get the latest results and fuse them."""
         # collect data from threads
+        data = [self.sources[source].get_frame() for source in self.sources]
+
         for timestamp, source, detected_hands, depth_frame, intrinsics in data:
             # if no results, then just next source
             if (
@@ -90,20 +97,18 @@ class FusionThread(Thread):
 
             if len(detected_hands) > 0:
                 # process each hand
-                hand_depths: list[np.ndarray] = list()
+                features = np.empty(shape=(0, 42))
                 for hand in detected_hands:
                     # extract features
-                    rel_depths, depths = convert_to_features(
+                    features_hand = convert_to_features(
                         detected_hands[hand], depth_frame=depth_frame
                     )
-                    # get min depth bu more than 0.0
-                    min_depth = np.min(depths[depths > 1e-3])
-                    # get argmin
-                    argmin = np.argmin(np.abs(depths - min_depth))
-                    # update_relative depths
-                    rel_depths = 1.0 + rel_depths - rel_depths[argmin]
-                    # save new depths
-                    hand_depths.append(rel_depths * min_depth)
+                    features = np.vstack([features, features_hand])
+
+                # predict real depths using ml
+                hand_depths = self.ml_detectors[source](
+                    self.ml_detectors[source], features=features
+                )
 
                 # convert to camera and then to world
                 axes = ["x", "y", "z"]
@@ -129,6 +134,6 @@ class FusionThread(Thread):
                     # make fusion
                     self.merger.add_time_frame(timestamp, source, detected_hands)
 
-        # do fusion as all processes are finished
+        # do fusion
         if len(data) > 0:
             self.merger.make_fusion(self.merger)

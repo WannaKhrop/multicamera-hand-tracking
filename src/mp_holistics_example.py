@@ -11,7 +11,6 @@ import mediapipe as mp
 mp_holistic = mp.solutions.holistic
 mp_drawing = mp.solutions.drawing_utils
 
-
 # For webcam input:
 cap = cv2.VideoCapture(0)
 with mp_holistic.Holistic(
@@ -37,6 +36,7 @@ with mp_holistic.Holistic(
         image.flags.writeable = True
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
+        """
         mp_drawing.draw_landmarks(
             image,
             results.face_landmarks,
@@ -52,6 +52,7 @@ with mp_holistic.Holistic(
             mp_drawing.DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=4),
             mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2),
         )
+        """
 
         mp_drawing.draw_landmarks(
             image,

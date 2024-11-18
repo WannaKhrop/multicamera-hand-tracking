@@ -16,6 +16,7 @@ from utils.constants import PROB_PARAM_DISANCE, PROB_PARAM_ZERO
 def main():
     # read available cameras
     available_cameras = MLCameraThreadRS.returnCameraIndexes()
+    print(available_cameras)
     # check cameras
     assert len(available_cameras) == 1, "Sampling is possible for one camera only !!!"
 
@@ -40,7 +41,7 @@ def main():
     data_in, data_out = list(), list()
     for camera_id in threads:
         features, targets = list(), list()
-        for elem_rel_depths, elem_depths in threads[camera_id].target:
+        for elem_features, elem_depths in threads[camera_id].target:
             # add clear data
             targets.append(elem_depths)
 
@@ -67,7 +68,7 @@ def main():
             corrupted_depths[bernoulli_vector_zero] = 0.0
 
             # save corrupted
-            features.append(np.hstack([elem_rel_depths, corrupted_depths]))
+            features.append(np.hstack([elem_features, corrupted_depths]))
 
         data_in.append(np.array(features))
         data_out.append(np.array(targets))
@@ -77,26 +78,21 @@ def main():
     data_y = np.vstack(data_out)
 
     # we collect a lot of data all the time, so we can just add it in the existing file !!!
-    try:
-        # read existing data
-        features = np.load(str(PATH_TO_DATA_FOLDER.joinpath("features.npy")))
-        targets = np.load(str(PATH_TO_DATA_FOLDER.joinpath("targets.npy")))
-    except Exception:
-        # just assign
-        features = np.empty((0, data_x.shape[1]))
-        targets = np.empty((0, data_y.shape[1]))
-
+    features_arr = np.empty((0, data_x.shape[1]))
+    targets_arr = np.empty((0, data_y.shape[1]))
     # add new data and as vertical stack
-    features = np.vstack([features, data_x])
-    targets = np.vstack([targets, data_y])
+    features_arr = np.vstack([features_arr, data_x])
+    targets_arr = np.vstack([targets_arr, data_y])
 
     # print results
-    print(features.shape)
-    print(targets.shape)
+    print(features_arr.shape)
+    print(targets_arr.shape)
 
     # save data
-    np.save(str(PATH_TO_DATA_FOLDER.joinpath("features.npy")), features)
-    np.save(str(PATH_TO_DATA_FOLDER.joinpath("targets.npy")), targets)
+    np.save(
+        str(PATH_TO_DATA_FOLDER.joinpath(f"{camera_id}_features.npy")), features_arr
+    )
+    np.save(str(PATH_TO_DATA_FOLDER.joinpath(f"{camera_id}_targets.npy")), targets_arr)
 
 
 if __name__ == "__main__":

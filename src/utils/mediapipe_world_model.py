@@ -4,26 +4,99 @@ Module contains class that uses trained neural network to convert normalized lan
 Author: Ivan Khrop
 Date: 23.09.2024
 """
-
-from keras.models import load_model, Sequential
 import tensorflow as tf
 import numpy as np
-from utils.constants import PATH_TO_DNN_MODEL
-from utils.utils import TimeChecker, CustomLoss
+from utils.constants import PATH_TO_DNN_MODEL, ML_MODEL_USE, ML_MODELS_AVAILABLE
+from utils.utils import TimeChecker
+
+from keras.models import load_model
+from sklearn.preprocessing import StandardScaler
+from typing import Any
+from kan import KAN
+import torch
+import joblib
 
 
 class MedapipeWorldTransformer:
-    model: Sequential
+    model: Any
+    scaler: StandardScaler
+    camera_id: str
 
-    def __init__(self):
+    def __init__(self, camera_id: str):
         """Crea a new instance from file."""
-        self.model = load_model(
-            filepath=PATH_TO_DNN_MODEL, custom_objects={"CustomLoss": CustomLoss}
-        )
+        self.camera_id = camera_id
+        # check
+        assert (
+            ML_MODEL_USE in ML_MODELS_AVAILABLE
+        ), "There is no ML Model that is specified"
+        # path
+        basic_path = PATH_TO_DNN_MODEL.joinpath(camera_id)
+        # choose a model
+        match ML_MODEL_USE:
+            case "KAN":
+                # KAN
+                self.model = KAN.loadckpt(basic_path.joinpath("mark"))
+                self.model.eval()
+                # self.scaler = joblib.load(filename=basic_path.joinpath("scaler.joblib"))
+            case "MLP":
+                # tensorflow
+                self.model = load_model(filepath=basic_path.joinpath(f"{camera_id}.h5"))
+            case "GB":
+                # gradient boosting
+                self.model = joblib.load(
+                    filename=basic_path.joinpath(f"{camera_id}.joblib")
+                )
+            case "HEURISTIC":
+                pass
 
     @TimeChecker
-    def __call__(self, features: np.ndarray) -> tf.Tensor:
-        return self.predict(features)
+    def __call__(self, features: np.ndarray) -> tf.Tensor | np.ndarray:
+        # choose a model
+        match ML_MODEL_USE:
+            case "KAN":
+                # get KAN prediction
+                with torch.no_grad():
+                    # self.scaler.transform(features)
+                    x = torch.from_numpy(features).float()
+                    predict = self.model(x)
+                return predict.numpy()
+            case "MLP":
+                # tensorflow
+                return self.predict(features)
+            case "GB":
+                # gradient boosting
+                return self.model.predict(features)
+            case "HEURISTIC":
+                return self.heuristic(features)
+
+    def heuristic(self, features: np.ndarray) -> np.ndarray:
+        """
+        Apply heuristic algorithm of depth reconstruction.
+
+        Parameters
+        ----------
+        features: np.ndarray
+            Features as [n_hands X relative_depths + depths]
+
+        Returns
+        -------
+        np.ndarray:
+            Reconstructed depths.
+        """
+        # extract depths
+        data = np.hsplit(features, 2)
+        rel_depths, depths = data[0], data[1]
+        depths = np.where(depths <= 1e-3, 100.0, depths)
+        # get min depth bu more than 0.0
+        min_depth = np.min(depths, axis=1, keepdims=True)
+        # get argmin
+        argmin_mask = np.argmin(np.abs(depths - min_depth), axis=1, keepdims=True)
+        # update_relative depths
+        rel_depths = (
+            1.0 + rel_depths - np.take_along_axis(rel_depths, argmin_mask, axis=1)
+        )
+        # save new depths
+        return rel_depths * min_depth
 
     @tf.function(jit_compile=True)
     def predict(self, features: np.ndarray) -> tf.Tensor:

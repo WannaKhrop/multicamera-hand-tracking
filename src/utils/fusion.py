@@ -91,7 +91,7 @@ class DataMerger:
         """Make fusion for current state."""
         # debug
         # for point in self.points:
-        #    print(point[0], point[1])
+        #   print(point[0], point[1])
         # print(60 * "=")
 
         # go over all points and get the number of hands
@@ -147,3 +147,31 @@ class DataMerger:
         self.points.clear()
         self.unique_frames.clear()
         self.fusion_results.clear()
+
+    def fluctuation_report(self):
+        """Write a report for results for each hand."""
+        # no data = no report
+        if len(self.fusion_results) == 0:
+            return
+
+        # for each hand
+        hands = set(["Left", "Right"])
+        for hand in hands:
+            # one commot dataframe
+            columns = [
+                str(i) + "_" + coord for i in range(21) for coord in ("x", "y", "z")
+            ]
+            df = pd.DataFrame(columns=columns)
+
+            # go over all frames
+            for _, data in self.fusion_results:
+                # if there is a hand
+                if hand in data:
+                    line = data[hand].values.reshape(-1)
+                    df.loc[len(df)] = line
+
+            df = df.describe()
+            print(60 * "=")
+            print(f"Report for {hand} hand")
+            print(df)
+            print(60 * "=")
