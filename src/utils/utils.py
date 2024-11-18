@@ -35,14 +35,14 @@ def merge_sorted_lists(
 
     Parameters
     ----------
-    list1: Ier[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]]
+    list1: Iterable[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]]
         First list to be merged. Each element is (timestamp, camera_id, frame, depth_frame, intrinsics)
-    list2: deque[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]]
+    list2: Iterable[tuple[int, str, np.array, np.array, rs.pyrealsense2.intrinsics]]
         Second list to be merged. Each element is (timestamp, camera_id, frame, depth_frame, intrinsics)
 
     Returns
     -------
-    merged_list: list[tuple[int, np.array, np.array, rs.pyrealsense2.intrinsics]]
+    merged_list: Iterable[tuple[int, np.array, np.array, rs.pyrealsense2.intrinsics]]
         Resulting list with elements sorted in ascending order accoring to timestamps.
         Each element is (timestamp, camera_id, frame, depth_frame, intrinsics)
     """

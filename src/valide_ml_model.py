@@ -12,7 +12,7 @@ from time import sleep
 
 # functions to process images
 from camera_thread.camera import camera
-from hand_recognition.hand_recognizer import to_numpy_ndarray_holistics
+from hand_recognition.hand_recognizer import to_numpy_ndarray
 from utils.mediapipe_world_model import MedapipeWorldTransformer
 from hand_recognition.HolisticLandmarker import HolisticLandmarker
 
@@ -30,7 +30,7 @@ def main():
 
     my_cam = camera(available_cameras[cam_id][0], available_cameras[cam_id][1])
     landmarker = HolisticLandmarker()
-    transformer = MedapipeWorldTransformer()
+    transformer = MedapipeWorldTransformer(camera_id=available_cameras[cam_id][1])
 
     sleep(1.0)
     input("Start capturing: ")
@@ -47,7 +47,7 @@ def main():
 
         # for each hand get depths and
         if mp_results.left_hand_landmarks is not None:
-            landmarks = to_numpy_ndarray_holistics(mp_results.left_hand_landmarks)
+            landmarks = to_numpy_ndarray(mp_results.left_hand_landmarks)
             # get depth data
             rel_depths, depths = MLCameraThreadRS.process_hand(
                 landmarks, depth_frame, intrinsics
@@ -70,7 +70,7 @@ def main():
 
         # for each hand get depths and
         if mp_results.right_hand_landmarks is not None:
-            landmarks = to_numpy_ndarray_holistics(mp_results.right_hand_landmarks)
+            landmarks = to_numpy_ndarray(mp_results.right_hand_landmarks)
             # get depth data
             rel_depths, depths = MLCameraThreadRS.process_hand(
                 landmarks, depth_frame, intrinsics
