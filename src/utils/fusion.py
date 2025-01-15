@@ -10,7 +10,8 @@ from threading import Lock
 import pandas as pd
 from utils.geometry import landmarks_fusion
 from utils.constants import SOFTMAX_PARAM
-from utils.utils import TimeChecker
+from utils.utils import TimeChecker, write_logs
+from camera_thread.camera_frame import CameraFrame
 
 
 class DataMerger:
@@ -21,20 +22,20 @@ class DataMerger:
     ----------
     time_delta: int > 0
         All frames are different no more than time_delta for timestamps.
-    current_unique_frames: set[int]
-        Set that contains unique cameras ID that will be fused in the next step.
-    points: deque[tuple[int, str, dict[str, pd.DataFrame]]]
+    unique_frames: set[tuple[int, str]]
+        Set that contains unique camera IDs and timestampt to detect repeting frames.
+    points: deque[CameraFrame]
         Landmarks of different cameras [timestamp, camera_id, landmarks].
-    fusion_results: list[tuple[int, dict[str, pd.DataFrame]]]
-        Results of fusion (timestamp, landmarks).
+    fusion_results: list[CamerFrame]
+        Results of fusion.
     locker: Lock
         Locker to controll access.
     """
 
     time_delta: int
-    points: deque[tuple[int, str, dict[str, pd.DataFrame]]]
+    points: deque[CameraFrame]
     unique_frames: set[tuple[int, str]]
-    fusion_results: list[tuple[int, dict[str, pd.DataFrame]]]
+    fusion_results: list[CameraFrame]
     locker: Lock
 
     def __init__(self, time_delta: int):
@@ -54,34 +55,36 @@ class DataMerger:
         # locker
         self.locker = Lock()
 
-    def add_time_frame(
-        self, timestamp: int, camera_id: str, landmarks: dict[str, pd.DataFrame]
-    ):
+    def add_time_frame(self, camera_frame: CameraFrame):
         """
         Process a new frame.
 
         Parameters
         ----------
-        timestamp: int
-            Timestamp of a new frame.
-        camera_id: int
-            Camera that captured a new frame.
-        landmarks: dict[str, pd.DataFrame]
-            Landmarks that were detected for each hand.
+        camera_frame: CameraFrame
+            Frame after processing having landmarks in world coordinates.
         """
+        # unwrap data
+        timestamp, camera_id, landmarks, _ = camera_frame.as_tuple()
+        # process data
         with self.locker:
             # check if we already have this frame
             if (timestamp, camera_id) in self.unique_frames:
                 return
 
             # check if this frame is in the past
-            if len(self.points) > 0 and self.points[0][0] - timestamp > self.time_delta:
+            if (
+                len(self.points) > 0
+                and self.points[0].timestamp - timestamp > self.time_delta
+            ):
                 return
 
             # add frame and update set and sort frames
-            self.points.append((timestamp, camera_id, landmarks))
+            self.points.append(
+                CameraFrame(timestamp, camera_id, landmarks, intrinsics=None)
+            )
             self.unique_frames.add((timestamp, camera_id))
-            self.points = deque(sorted(self.points, key=lambda frame: frame[0]))
+            self.points = deque(sorted(self.points, key=lambda frame: frame.timestamp))
 
             # adjust frames for fusion
             self.clear_for_timestamp()
@@ -106,7 +109,11 @@ class DataMerger:
             world_coordinates = list()
 
             # gather information from all the frames of different cameras
-            for frame_timestamp, _, frame in self.points:
+            for data in self.points:
+                # unwrap frame
+                frame_timestamp, _, frame, _ = data.as_tuple()
+
+                # process hands
                 if hand in frame:
                     timestamp = max(timestamp, frame_timestamp)
                     world_coordinates.append(frame[hand])
@@ -118,7 +125,13 @@ class DataMerger:
                 )
 
         # save the final result
-        self.fusion_results.append((timestamp, result))
+        camera_frame = CameraFrame(
+            timestamp=timestamp,
+            camera_id="Fusion",
+            landmarks=result,
+            intrinsics=None,
+        )
+        self.fusion_results.append(camera_frame)
 
     def get_latest_result(
         self,
@@ -126,7 +139,8 @@ class DataMerger:
         """Get the latest merger result."""
         with self.locker:
             if len(self.fusion_results) > 0:
-                return self.fusion_results[-1]
+                frame_timestamp, _, hands_dict, _ = self.fusion_results[-1].as_tuple()
+                return frame_timestamp, hands_dict
             else:
                 return None, None
 
@@ -134,9 +148,10 @@ class DataMerger:
         """Delete all elements untill all timestamps differ no more than time delay."""
         while (
             len(self.points) > 0
-            and abs(self.points[-1][0] - self.points[0][0]) > self.time_delta
+            and abs(self.points[-1].timestamp - self.points[0].timestamp)
+            > self.time_delta
         ):
-            timestamp, camera_id, _ = self.points[0]
+            timestamp, camera_id, _, _ = self.points[0].as_tuple()
 
             # remove frame and delete from set
             self.points.popleft()
@@ -175,3 +190,7 @@ class DataMerger:
             print(f"Report for {hand} hand")
             print(df)
             print(60 * "=")
+
+    def write_logs(self):
+        """Write logs to the file."""
+        write_logs(frames=self.fusion_results, camera_id="Fusion")

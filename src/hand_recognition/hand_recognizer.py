@@ -63,8 +63,8 @@ def hand_to_df(landmarks: np.ndarray):
     return df
 
 
-def get_depth_data_from_pixel(
-    x: float, y: float, depth_frame: np.ndarray, intrinsics: rs.pyrealsense2.intrinsics
+def get_camera_coordinates_for_pixel(
+    x: float, y: float, depth: float, intrinsics: rs.pyrealsense2.intrinsics
 ) -> np.ndarray:
     """
     Get camera coordinates for pixel (x, y).
@@ -75,38 +75,8 @@ def get_depth_data_from_pixel(
         Normalized x-coordinate at the image.
     y: float
         Normalized y-coordinate at image.
-    depth_frame: np.ndarray
-        Depth data from image.
-    intrinsics: rs.pyrealsense2.intrinsics
-        Camera intrinsics parameters.
-
-    Returns
-    -------
-    np.array
-        Camera cordinates.
-    """
-    # identify pixels
-    x_pixel = int(x * CAMERA_RESOLUTION_WIDTH)
-    y_pixel = int(y * CAMERA_RESOLUTION_HEIGHT)
-    point = camera.get_camera_coordinates(x_pixel, y_pixel, depth_frame, intrinsics)
-
-    return point
-
-
-def get_data_from_pixel_depth(
-    x: float, y: float, depth: float, intrinsics: rs.pyrealsense2.intrinsics
-) -> np.ndarray:
-    """
-    Get camera coordinates for pixel (x, y) and depth.
-
-    Parameters
-    ----------
-    x: float
-        Normalized x-coordinate at the image.
-    y: float
-        Normalized y-coordinate at image.
     depth: float
-        Depth data from image.
+        Depth of the point.
     intrinsics: rs.pyrealsense2.intrinsics
         Camera intrinsics parameters.
 
@@ -145,7 +115,7 @@ def convert_hand(
     return landmarks
 
 
-def convert_to_features(landmarks: pd.DataFrame, depth_frame: np.ndarray) -> np.ndarray:
+def extract_depths(landmarks: pd.DataFrame, depth_frame: np.ndarray) -> np.ndarray:
     """
     Convert landmarks to features using depth frame.
 
@@ -173,7 +143,7 @@ def convert_to_features(landmarks: pd.DataFrame, depth_frame: np.ndarray) -> np.
         depths.append(depth)
 
     # constuct features
-    return np.hstack([landmarks.z.values, np.array(depths)])
+    return np.array(depths)
 
 
 def retrieve_from_depths(
@@ -195,11 +165,14 @@ def retrieve_from_depths(
     # now we have assumption about depth and use it to correct coordinates
     for idx, depth in zip(landmarks.index, depths, strict=True):
         x, y = landmarks.loc[idx].x, landmarks.loc[idx].y
-        landmarks.loc[idx, coords] = get_data_from_pixel_depth(x, y, depth, intrinsics)
+        landmarks.loc[idx, coords] = get_camera_coordinates_for_pixel(
+            x, y, depth, intrinsics
+        )
 
 
 def extract_landmarks(
     mp_results: mp.tasks.vision.HolisticLandmarkerResult,  # type: ignore
+    depth_frame: np.ndarray,
 ) -> dict[str, pd.DataFrame]:
     """
     Extract each landmark.
@@ -208,11 +181,13 @@ def extract_landmarks(
     ----------
     mp_results: mp.tasks.vision.HolisticLandmarkerResult
         Results of detection.
+    depth_frame: np.ndarray
+        Depth data from image.
 
     Returns
     -------
     dict[str, pd.DataFrame]
-        DataFrame with camera coordinates and visibility like: [x, y, z, visibility] for each hand.
+        DataFrame with camera coordinates like: [x, y, z, depth] for each hand.
     """
     hands = dict()
 
@@ -222,12 +197,20 @@ def extract_landmarks(
         hands["Left"] = convert_hand(
             holistic_landmarks=mp_results.left_hand_landmarks,
         )
+        if len(hands["Left"]) > 0:
+            hands["Left"].loc[:, "depth"] = extract_depths(
+                landmarks=hands["Left"], depth_frame=depth_frame
+            )
 
     if mp_results.right_hand_landmarks is not None:
         # get result
         hands["Right"] = convert_hand(
             holistic_landmarks=mp_results.right_hand_landmarks
         )
+        if len(hands["Right"]) > 0:
+            hands["Right"].loc[:, "depth"] = extract_depths(
+                landmarks=hands["Right"], depth_frame=depth_frame
+            )
 
     return hands
 

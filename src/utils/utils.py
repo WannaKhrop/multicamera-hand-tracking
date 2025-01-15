@@ -9,16 +9,19 @@ import pandas as pd
 import cv2
 from typing import Iterable, Sequence
 from time import time
+import json
 from threading import Lock
 from functools import wraps
 from typing import TypeVar, ParamSpec, Callable, Generic
 from keras import losses
 import tensorflow as tf
+from camera_thread.camera_frame import CameraFrame
 
 from utils.constants import (
     PATH_TO_VIDEOS,
     CAMERA_RESOLUTION_WIDTH,
     CAMERA_RESOLUTION_HEIGHT,
+    PATH_TO_LOGS,
 )
 
 # for decorators
@@ -216,13 +219,34 @@ def make_video(name: str, frames: Iterable[np.ndarray]):
     video_name: str = str(PATH_TO_VIDEOS.joinpath(name + ".avi"))
     codec = cv2.VideoWriter.fourcc(*"XVID")
     size: Sequence[int] = (CAMERA_RESOLUTION_WIDTH, CAMERA_RESOLUTION_HEIGHT)
-    video = cv2.VideoWriter(filename=video_name, fourcc=codec, fps=10.0, frameSize=size)
+    video = cv2.VideoWriter(filename=video_name, fourcc=codec, fps=7.0, frameSize=size)
 
     for frame in frames:
         video.write(frame)
 
     cv2.destroyAllWindows()
     video.release()
+
+
+def write_logs(frames: list[CameraFrame], camera_id: str):
+    """
+    Write logs to the file.
+
+    Parameters
+    ----------
+    frames: list[CameraFrame]
+        List of frames that will be written to the file.
+    camera_id: str
+        Camera id that will be used for the file name.
+    """
+    # create path to the file
+    path_to_file = PATH_TO_LOGS.joinpath(f"log_{camera_id}.jsonl")
+    # create dictionary with data
+    data_to_save = [frame.to_dict() for frame in frames]
+    # save it to the file
+    with open(path_to_file, "w") as file:
+        for item in data_to_save:
+            file.write(json.dumps(item) + "\n")
 
 
 # class for custom loss function

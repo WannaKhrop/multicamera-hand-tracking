@@ -32,6 +32,8 @@ PATH_TO_DATA_FOLDER = Path(__file__).parent.parent.parent.joinpath(
 
 PATH_TO_VIDEOS = Path(__file__).parent.parent.parent.joinpath("videos")
 
+PATH_TO_LOGS = Path(__file__).parent.parent.parent.joinpath("logs")
+
 # numpy format
 NUMPY_FILE_EXT = ".npy"
 

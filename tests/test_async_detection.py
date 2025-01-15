@@ -59,8 +59,9 @@ def test_async_depth_detection():
         x_pixel, y_pixel = elem
         _, depth_frame, intrinsic = async_data[i]
         # detect camera coordinates asynchronously
-        async_result = camera.get_camera_coordinates(
-            x_pixel, y_pixel, depth_frame, intrinsic
+        depth = camera.get_depth(x_pixel, y_pixel, depth_frame=depth_frame)
+        async_result = camera.get_coordinates_for_depth(
+            x_pixel, y_pixel, depth, intrinsic
         )
 
         async_results.append(async_result)

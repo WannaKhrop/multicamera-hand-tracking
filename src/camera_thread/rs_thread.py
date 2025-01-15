@@ -8,7 +8,6 @@ Date: 23.07.2024
 from threading import Thread, Event, Lock, Barrier, BrokenBarrierError
 from time import time
 import numpy as np
-import pandas as pd
 
 # realsense camera
 from camera_thread.camera import camera
@@ -16,12 +15,10 @@ import pyrealsense2 as rs
 
 # models
 from hand_recognition.HolisticLandmarker import HolisticLandmarker
-from hand_recognition.hand_recognizer import (
-    extract_landmarks,
-    # draw_landmarks_holistics
-)
-from utils.utils import make_video
+from hand_recognition.hand_recognizer import extract_landmarks, draw_landmarks_holistics
+from utils.utils import make_video, write_logs
 from utils.constants import DATA_WAIT_TIME, CAMERA_WAIT_TIME
+from camera_thread.camera_frame import CameraFrame
 
 
 class CameraThreadRS(Thread):
@@ -42,16 +39,22 @@ class CameraThreadRS(Thread):
         A locker to controll multithread access to the target-attribute
     barrier: Barrier
         A barrier to force different cameras to work simutaneously
+    test_mode: bool = False
+        A mark that testing mode is enabled.
+    save_video: bool = False
+        A mark that video of a camera must be saved.
+
     """
 
     close_event: Event
     frames: list[np.ndarray]
-    target: tuple[
-        int, str, dict[str, pd.DataFrame], np.ndarray, rs.pyrealsense2.intrinsics
-    ] | tuple[None, None, None, None, None] = None, None, None, None, None
+    target: CameraFrame | None
     barrier: Barrier
     data_barrier: Barrier
     locker: Lock
+    test_mode: bool
+    save_video: bool
+    camera_frames: list[CameraFrame]
 
     def __init__(
         self,
@@ -60,6 +63,8 @@ class CameraThreadRS(Thread):
         close_event: Event,
         barrier: Barrier,
         data_barrier: Barrier,
+        test_mode: bool = False,
+        save_video: bool = False,
     ):
         """Initialize a new instance of RS-Thread for a camera."""
         Thread.__init__(self)
@@ -67,12 +72,17 @@ class CameraThreadRS(Thread):
         # init fields
         self.camera = camera(camera_name, camera_id)
         self.frames = list()
+        self.camera_frames = list()
 
         # in case of multithreding
         self.locker = Lock()
         self.close_event = close_event
         self.barrier = barrier
         self.data_barrier = data_barrier
+        self.test_mode = test_mode
+        self.save_video = (
+            save_video if not test_mode else test_mode
+        )  # in case of testing always save video
 
     def run(self):
         """
@@ -100,7 +110,15 @@ class CameraThreadRS(Thread):
             mp_results = holistic_landmarker.process_image(
                 holistic_landmarker, color_frame
             )
-            detected_hands = extract_landmarks(mp_results=mp_results)
+            detected_hands = extract_landmarks(
+                mp_results=mp_results, depth_frame=depth_frame
+            )
+            camera_frame = CameraFrame(
+                timestamp=time_stamp,
+                camera_id=self.camera.device_id,
+                landmarks=detected_hands,
+                intrinsics=intrinsics,
+            )
 
             # give time for other threads but not to much
             if not self.syncronize():
@@ -109,22 +127,18 @@ class CameraThreadRS(Thread):
                 break
 
             # for debugging only !!!!
-            # self.frames.append(color_frame)
-            # draw_landmarks_holistics(color_frame, mp_results.left_hand_landmarks)
-            # draw_landmarks_holistics(color_frame, mp_results.right_hand_landmarks)
+            if self.test_mode and len(detected_hands) > 0:
+                self.camera_frames.append(camera_frame.copy())
+
+            # save video if required
+            if self.save_video:
+                self.frames.append(color_frame)
+                draw_landmarks_holistics(color_frame, mp_results.left_hand_landmarks)
+                draw_landmarks_holistics(color_frame, mp_results.right_hand_landmarks)
 
             # if there is something, add it
             with self.locker:
-                if len(detected_hands) > 0:
-                    self.target = (
-                        time_stamp,
-                        self.camera.device_id,
-                        detected_hands,
-                        depth_frame,
-                        intrinsics,
-                    )
-                else:
-                    self.target = None, None, None, None, None
+                self.target = camera_frame if len(detected_hands) > 0 else None
 
             # show that thread has provided data
             try:
@@ -137,21 +151,15 @@ class CameraThreadRS(Thread):
         self.camera.stop()
 
         # create video that was actually caprured
-        # self.make_video()
+        if self.save_video:
+            make_video(name=self.camera.device_id, frames=self.frames)
+        if self.test_mode:
+            write_logs(frames=self.camera_frames, camera_id=self.camera.device_id)
 
         # report finish !!!
         print(f"Thread {self.camera.device_id} is stopped")
 
-    def make_video(self):
-        """Create video from frames."""
-        make_video(name=self.camera.device_id, frames=self.frames)
-
-    def get_frame(
-        self,
-    ) -> (
-        tuple[int, str, dict[str, pd.DataFrame], np.ndarray, rs.pyrealsense2.intrinsics]
-        | tuple[None, None, None, None, None]
-    ):  # type: ignore
+    def get_frame(self) -> CameraFrame | None:
         """Return latest frame possible."""
         with self.locker:
             return self.target

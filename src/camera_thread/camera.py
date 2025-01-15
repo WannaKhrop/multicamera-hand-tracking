@@ -203,24 +203,6 @@ class camera:
             self.pipeline_started = False
 
     @classmethod
-    def get_camera_coordinates(
-        cls,
-        x_pixel: int,
-        y_pixel: int,
-        depth_frame: np.ndarray,
-        intrinsics: rs.pyrealsense2.intrinsics,
-    ) -> np.ndarray:
-        # need to check the coordinates of x and y
-        try:
-            depth = depth_frame[y_pixel, x_pixel] / SCALE_FACTOR
-            dx, dy, dz = rs.rs2_deproject_pixel_to_point(
-                intrinsics, [x_pixel, y_pixel], depth
-            )
-            return np.array([dx, dy, dz])
-        except Exception:
-            return np.array([-10, -10, -10])
-
-    @classmethod
     def get_coordinates_for_depth(
         cls,
         x_pixel: int,
