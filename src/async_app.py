@@ -35,7 +35,7 @@ data_barrier = Barrier(
 read_finished = Barrier(
     parties=(len(available_cameras) + 1)
 )  # all cameras + one processing thread !!!
-SAVE_LOGS = True
+SAVE_LOGS = False
 WRITE_VIDEO = False
 
 # Camera threads initialization

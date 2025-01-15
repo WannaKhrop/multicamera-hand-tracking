@@ -18,12 +18,39 @@ import joblib
 
 
 class MedapipeWorldTransformer:
+    """
+    A transformer class for handling different machine learning models used in
+    multi-camera hand tracking. This class supports various models such as KAN,
+    MLP, Gradient Boosting, and a heuristic approach for depth reconstruction.
+
+    Attributes
+    ----------
+    model : Any
+        The machine learning model used for predictions.
+    scaler : StandardScaler
+        The scaler used for feature normalization (currently commented out).
+    camera_id : str
+        The identifier for the camera being used.
+
+    Methods
+    -------
+    __init__(camera_id: str)
+        Initializes the transformer with the specified camera ID and loads the
+        appropriate model based on the global ML_MODEL_USE variable.
+    __call__(features: np.ndarray) -> tf.Tensor | np.ndarray
+        Makes predictions using the loaded model based on the provided features.
+    heuristic(features: np.ndarray) -> np.ndarray
+        Applies a heuristic algorithm for depth reconstruction based on the provided features.
+    predict(features: np.ndarray) -> tf.Tensor
+        Predicts world coordinates using the loaded TensorFlow model.
+    """
+
     model: Any
     scaler: StandardScaler
     camera_id: str
 
     def __init__(self, camera_id: str):
-        """Crea a new instance from file."""
+        """Create a new instance from file."""
         self.camera_id = camera_id
         # check
         assert (
@@ -71,17 +98,21 @@ class MedapipeWorldTransformer:
 
     def heuristic(self, features: np.ndarray) -> np.ndarray:
         """
-        Apply heuristic algorithm of depth reconstruction.
+        Apply a heuristic algorithm for depth reconstruction.
+        This method processes the input features to reconstruct depths using a heuristic approach.
+        It separates the input features into relative depths and absolute depths, adjusts the depths
+        based on a threshold, and then updates the relative depths based on the minimum depth found.
 
         Parameters
         ----------
-        features: np.ndarray
-            Features as [n_hands X relative_depths + depths]
+        features : np.ndarray
+            A 2D array of shape (n_hands, 2 * n_features) where the first half represents
+            relative depths and the second half represents absolute depths.
 
         Returns
         -------
-        np.ndarray:
-            Reconstructed depths.
+        np.ndarray
+            A 2D array of reconstructed depths with the same shape as the input features.
         """
         # extract depths
         data = np.hsplit(features, 2)
@@ -107,6 +138,7 @@ class MedapipeWorldTransformer:
         ----------
         features: np.ndarray
             Results of mediapipe as normalized coordinates.
+
         Returns
         -------
         tf.Tensor

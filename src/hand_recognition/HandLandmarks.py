@@ -9,9 +9,7 @@ from enum import Enum
 
 
 class HandLandmark(Enum):
-    """
-    Contains all constants that describe handlandmarks in mediapipe.
-    """
+    """Contains all constants that describe handlandmarks in mediapipe."""
 
     WRIST = 0
     THUMB_CMC = 1

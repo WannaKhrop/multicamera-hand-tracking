@@ -34,7 +34,7 @@ def to_numpy_ndarray(landmarks: landmark_pb2.NormalizedLandmarkList):
     Returns
     -------
     np.ndarray:
-        Resulting matrix [21, 3]
+        Resulting matrix of landmarks [21, 3]
     """
     matrix = list()
 
@@ -47,7 +47,6 @@ def to_numpy_ndarray(landmarks: landmark_pb2.NormalizedLandmarkList):
 def hand_to_df(landmarks: np.ndarray):
     """
     Convert matrix of points into a pandas.DataFrame.
-    Resulting DataFrame contains the following columns: index, x, y, z
 
     Parameters
     ----------
@@ -57,6 +56,7 @@ def hand_to_df(landmarks: np.ndarray):
     Returns
     -------
     pd.DataFrame
+        Resulting DataFrame contains the following columns: [x, y, z].
     """
     columns = ["x", "y", "z"]
     df = pd.DataFrame(landmarks, columns=columns)
@@ -117,25 +117,25 @@ def convert_hand(
 
 def extract_depths(landmarks: pd.DataFrame, depth_frame: np.ndarray) -> np.ndarray:
     """
-    Convert landmarks to features using depth frame.
+    Extract depth values for each landmark using the depth frame.
 
     Parameters
     ----------
     landmarks: pd.DataFrame
-        DataFrame with camera coordinates and visibility like: [x, y, z, visibility.
+        DataFrame containing the x, y coordinates of the landmarks.
     depth_frame: np.ndarray
-        Depth data from image.
+        Depth data from the image.
 
     Returns
     -------
-    np.ndarray:
-        Features as [Relative depths, Measured depths]
+    np.ndarray
+        Array of depth values corresponding to each landmark.
     """
     # get coordinates and identify the closest point to the camera
     depths: list[float] = list()
     x = (landmarks.x.values * CAMERA_RESOLUTION_WIDTH).astype(int)
     y = (landmarks.y.values * CAMERA_RESOLUTION_HEIGHT).astype(int)
-    for x_pixel, y_pixel in zip(x, y):
+    for x_pixel, y_pixel in zip(x, y, strict=True):
         # get depths and save
         depth = camera.get_depth(
             x_pixel=x_pixel, y_pixel=y_pixel, depth_frame=depth_frame
@@ -150,16 +150,21 @@ def retrieve_from_depths(
     landmarks: pd.DataFrame, depths: np.ndarray, intrinsics: rs.pyrealsense2.intrinsics
 ):
     """
-    Retrieve camera coordinates for landmarks having depths.
+    Retrieve camera coordinates for landmarks using their depths.
 
     Parameters
     ----------
-    holistic_landmarks: landmark_pb2.NormalizedLandmarkList
-        Landmarks of the hand. Will be changed !!!
+    landmarks: pd.DataFrame
+        DataFrame containing the x, y coordinates of the landmarks.
     depths: np.ndarray
-        Predicted depths.
+        Array of depth values corresponding to each landmark.
     intrinsics: rs.pyrealsense2.intrinsics
         Camera intrinsics parameters.
+
+    Returns
+    -------
+    None
+        The function updates the landmarks DataFrame in place with the camera coordinates.
     """
     coords = ["x", "y", "z"]
     # now we have assumption about depth and use it to correct coordinates
@@ -218,16 +223,16 @@ def extract_landmarks(
 def draw_landmarks_holistics(
     annotated_image: np.ndarray,
     detection_result: list[NormalizedLandmark],  # type: ignore
-):  # type: ignore
+):
     """
     Annotate image with detected landmarks.
 
     Parameters
     ----------
-    annotated_image: np.array
+    annotated_image: np.ndarray
         Image to annotate.
     detection_result: list[NormalizedLandmark]
-        Landmarks to draw at the image.
+        Landmarks to draw on the image.
     """
     mp_holistic = mp.solutions.holistic
     mp_drawing = mp.solutions.drawing_utils

@@ -16,20 +16,35 @@ from camera_thread.camera_frame import CameraFrame
 
 class DataMerger:
     """
-    Class makes fusion of landmarks from different threads.
+    Class for fusing landmarks from different camera frames.
 
     Attributes
     ----------
-    time_delta: int > 0
-        All frames are different no more than time_delta for timestamps.
-    unique_frames: set[tuple[int, str]]
-        Set that contains unique camera IDs and timestampt to detect repeting frames.
-    points: deque[CameraFrame]
-        Landmarks of different cameras [timestamp, camera_id, landmarks].
-    fusion_results: list[CamerFrame]
-        Results of fusion.
-    locker: Lock
-        Locker to controll access.
+    time_delta : int
+        Maximum allowed time difference between frames for fusion.
+    unique_frames : set[tuple[int, str]]
+        Set of unique camera IDs and timestamps to detect repeating frames.
+    points : deque[CameraFrame]
+        Queue of camera frames containing landmarks.
+    fusion_results : list[CameraFrame]
+        List of fused camera frames.
+    locker : Lock
+        Lock to control access to shared resources.
+
+    Methods
+    -------
+    add_time_frame(camera_frame: CameraFrame)
+        Adds a new camera frame for processing.
+    make_fusion()
+        Performs fusion of landmarks from different camera frames.
+    get_latest_result() -> tuple[int, dict[str, pd.DataFrame]] | tuple[None, None]
+        Retrieves the latest fusion result.
+    clear_for_timestamp()
+        Removes frames until all timestamps differ by no more than the time delta.
+    clear()
+        Clears all internal fields.
+    write_logs()
+        Writes logs to a file.
     """
 
     time_delta: int
@@ -57,7 +72,7 @@ class DataMerger:
 
     def add_time_frame(self, camera_frame: CameraFrame):
         """
-        Process a new frame.
+        Add a new frame into the merger.
 
         Parameters
         ----------
@@ -162,34 +177,6 @@ class DataMerger:
         self.points.clear()
         self.unique_frames.clear()
         self.fusion_results.clear()
-
-    def fluctuation_report(self):
-        """Write a report for results for each hand."""
-        # no data = no report
-        if len(self.fusion_results) == 0:
-            return
-
-        # for each hand
-        hands = set(["Left", "Right"])
-        for hand in hands:
-            # one commot dataframe
-            columns = [
-                str(i) + "_" + coord for i in range(21) for coord in ("x", "y", "z")
-            ]
-            df = pd.DataFrame(columns=columns)
-
-            # go over all frames
-            for _, data in self.fusion_results:
-                # if there is a hand
-                if hand in data:
-                    line = data[hand].values.reshape(-1)
-                    df.loc[len(df)] = line
-
-            df = df.describe()
-            print(60 * "=")
-            print(f"Report for {hand} hand")
-            print(df)
-            print(60 * "=")
 
     def write_logs(self):
         """Write logs to the file."""

@@ -95,7 +95,7 @@ class FusionThread(Thread):
 
     @TimeChecker
     def process_sources(self):
-        """Go over all sources, get the latest results and fuse them."""
+        """Go over all sources, get the latest results and apply fusion to them."""
         # collect data from threads
         frames = [self.sources[source].get_frame() for source in self.sources]
 

@@ -13,8 +13,6 @@ import json
 from threading import Lock
 from functools import wraps
 from typing import TypeVar, ParamSpec, Callable, Generic
-from keras import losses
-import tensorflow as tf
 from camera_thread.camera_frame import CameraFrame
 
 from utils.constants import (
@@ -86,7 +84,7 @@ def umeyama(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
         R - rotation matrix
         t - translation vector
 
-    Mathimatical justification of this algorithm can be found here[https://web.stanford.edu/class/cs273/refs/umeyama.pdf]
+    Mathematical justification of this algorithm can be found here[https://web.stanford.edu/class/cs273/refs/umeyama.pdf]
 
     Parameters
     ----------
@@ -207,20 +205,26 @@ def softmax(data: np.ndarray, temperature: float = 1.0) -> np.ndarray:
 
 def make_video(name: str, frames: Iterable[np.ndarray]):
     """
-    Create video from frames.
+    Create a video from a sequence of frames.
 
-    Parameters
-    ----------
-    frames: Iterable[np.array]
+    Parametrs
+    ---------
+    name : str
+        The name of the output video file (without extension).
+    frames : Iterable[np.ndarray]
+        An iterable of frames (numpy arrays) to be included in the video.
     """
+    # check if there is anything
     if len(list(frames)) == 0:
         return
 
+    # configure video parameters
     video_name: str = str(PATH_TO_VIDEOS.joinpath(name + ".avi"))
     codec = cv2.VideoWriter.fourcc(*"XVID")
     size: Sequence[int] = (CAMERA_RESOLUTION_WIDTH, CAMERA_RESOLUTION_HEIGHT)
     video = cv2.VideoWriter(filename=video_name, fourcc=codec, fps=7.0, frameSize=size)
 
+    # save video
     for frame in frames:
         video.write(frame)
 
@@ -247,22 +251,6 @@ def write_logs(frames: list[CameraFrame], camera_id: str):
     with open(path_to_file, "w") as file:
         for item in data_to_save:
             file.write(json.dumps(item) + "\n")
-
-
-# class for custom loss function
-class CustomLoss(losses.Loss):
-    weight: float
-
-    def __init__(self, weight: float = 1.0, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        assert 0.0 <= weight <= 1.0, "Wrong value for weight"
-        self.weight = weight
-
-    def call(self, y_true, y_pred):
-        mae = tf.reduce_mean(tf.math.abs(y_pred - y_true))
-        log_cosh_loss = tf.reduce_mean(tf.math.log(tf.math.cosh(y_pred - y_true)))
-
-        return (1.0 - self.weight) * log_cosh_loss + self.weight * mae
 
 
 class TimeChecker(Generic[F_Spec, F_Return]):

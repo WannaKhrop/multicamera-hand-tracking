@@ -210,6 +210,29 @@ class camera:
         depth: float,
         intrinsics: rs.pyrealsense2.intrinsics,
     ) -> np.ndarray:
+        """
+        Get the 3D camera coordinates for a given pixel and depth value.
+        This function takes the pixel coordinates (x, y) and the depth value
+        from a depth image, along with the camera intrinsics, and calculates
+        the corresponding 3D coordinates in the camera space.
+
+        Parameters:
+        -----------
+        x_pixel : int
+            The x-coordinate of the pixel in the depth image.
+        y_pixel : int
+            The y-coordinate of the pixel in the depth image.
+        depth : float
+            The depth value at the given pixel.
+        intrinsics : rs.pyrealsense2.intrinsics
+            The camera intrinsics which include the focal length and principal point.
+
+        Returns:
+        --------
+        np.ndarray
+            A numpy array containing the 3D coordinates [x, y, z] in the camera space.
+            If an error occurs, returns a numpy array with values [-10, -10, -10].
+        """
         try:
             dx, dy, dz = rs.rs2_deproject_pixel_to_point(
                 intrinsics, [x_pixel, y_pixel], depth
@@ -221,7 +244,7 @@ class camera:
     @classmethod
     def get_depth(cls, x_pixel: int, y_pixel: int, depth_frame: np.ndarray) -> float:
         """
-        Get camera coordinates for pixel (x, y).
+        Get camera depth value for pixel (x, y).
 
         Parameters
         ----------

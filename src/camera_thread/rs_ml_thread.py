@@ -14,9 +14,13 @@ import pyrealsense2 as rs
 
 # models
 from hand_recognition.HolisticLandmarker import HolisticLandmarker
-from hand_recognition.hand_recognizer import to_numpy_ndarray, get_depth_data_from_pixel
+from hand_recognition.hand_recognizer import to_numpy_ndarray
 from utils.utils import thread_safe
-from utils.constants import DISTACE_LIMIT
+from utils.constants import (
+    DISTACE_LIMIT,
+    CAMERA_RESOLUTION_WIDTH,
+    CAMERA_RESOLUTION_HEIGHT,
+)
 
 
 @thread_safe
@@ -30,10 +34,12 @@ class MLCameraThreadRS(Thread):
 
     Attributes
     ----------
+    thread_cam: camera
+        Camera that captures frames for this thread.
     close_event: Event
-        Event to stop the thread
+        Event to stop the thread.
     target: list[tuple[np.ndarray, np.ndarray]]
-        A place to save the result (timestamp, cameara_id, Left and Right hands)
+        A place to save the result (timestamp, cameara_id, Left and Right hands).
     """
 
     thread_cam: camera
@@ -109,12 +115,14 @@ class MLCameraThreadRS(Thread):
     ):
         # get depth data
         rel_depths = landmarks[:, 2]
-        depths = MLCameraThreadRS.get_depth_data(landmarks, depth_frame, intrinsics)
+        depths = MLCameraThreadRS.get_camera_coordinates(
+            landmarks, depth_frame, intrinsics
+        )
 
         return (rel_depths, depths)
 
     @staticmethod
-    def get_depth_data(
+    def get_camera_coordinates(
         landmarks: np.ndarray,
         depth_frame: np.ndarray,
         intrinsics: rs.pyrealsense2.intrinsics,
@@ -123,10 +131,16 @@ class MLCameraThreadRS(Thread):
         depth_data = list()
 
         for landmark in landmarks:
-            coordinates = get_depth_data_from_pixel(
-                x=landmark[0],
-                y=landmark[1],
-                depth_frame=depth_frame,
+            # get pixels
+            x_pixel = int(CAMERA_RESOLUTION_WIDTH * landmark[0])
+            y_pixel = int(CAMERA_RESOLUTION_HEIGHT * landmark[1])
+            # get depth
+            depth = camera.get_depth(x_pixel, y_pixel, depth_frame=depth_frame)
+            # get camera coordinates
+            coordinates = camera.get_coordinates_for_depth(
+                x_pixel=x_pixel,
+                y_pixel=y_pixel,
+                depth=depth,
                 intrinsics=intrinsics,
             )
             depth_data.append(coordinates[2])

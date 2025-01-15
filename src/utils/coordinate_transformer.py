@@ -18,7 +18,15 @@ class CoordinateTransformer:
 
     Attributes
     ----------
-    transformations: dict[int, np.ndarray]
+    transformations: dict[str, np.ndarray]
+       Dictionary storing transformation matrices for each camera.
+
+    Methods
+    -------
+    camera_to_world(camera_id: str, points: np.ndarray) -> np.ndarray
+        Apply transformation to points in camera coordinate system to convert them to world coordinates.
+    world_to_camera(camera_id: str, points: np.ndarray) -> np.ndarray
+        Placeholder method for converting points from world coordinates to camera coordinates.
     """
 
     # fields of transformer
@@ -80,5 +88,5 @@ class CoordinateTransformer:
         return y_data.T
 
     def world_to_camera(self, camera_id: str, points: np.ndarray) -> np.ndarray:
-        # no need
-        return np.zeros(1)
+        # not implemented yet
+        raise NotImplementedError()

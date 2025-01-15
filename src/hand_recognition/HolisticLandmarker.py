@@ -10,9 +10,7 @@ import pyrealsense2 as rs
 import numpy as np
 import pandas as pd
 
-from hand_recognition.hand_recognizer import (
-    extract_landmarks,
-)
+from hand_recognition.hand_recognizer import extract_landmarks
 from utils.utils import TimeChecker
 
 from typing import Iterable
@@ -27,6 +25,8 @@ class HolisticLandmarker:
     ----------
     landmarker: mp.tasks.vision.HolisticLandmarker
     """
+
+    landmarker: mp.tasks.vision.HolisticLandmarker  # type: ignore
 
     def __init__(self, *args, **kwargs):
         """Create a new instance."""
@@ -51,12 +51,12 @@ class HolisticLandmarker:
         Parameters
         ----------
         image: np.ndarray
-            Image that must be processed
+            Image that must be processed.
 
         Returns
         -------
         detection_results: mediapipe.tasks.python.vision.hand_landmarker.HandLandmarkerResult
-            Results of mediapipe
+            Results of mediapipe.
         """
         return self.landmarker.process(image)
 
@@ -66,16 +66,36 @@ class HolisticLandmarker:
             tuple[int, str, np.ndarray, np.ndarray, rs.pyrealsense2.intrinsics]
         ],
     ) -> Iterable[tuple[int, str, dict[str, pd.DataFrame]]]:
+        """
+        Processes a sequence of frames to detect hands and extract landmarks.
+
+        Parameters
+        ----------
+        frames: Iterable[tuple[int, str, np.ndarray, np.ndarray, rs.pyrealsense2.intrinsics]]
+            An iterable of tuples, where each tuple contains:
+                - timestamp (int): The timestamp of the frame.
+                - camera_id (str): The identifier of the camera.
+                - color_frame (np.ndarray): The color frame image.
+                - depth_frame (np.ndarray): The depth frame image.
+                - intrinsics (rs.pyrealsense2.intrinsics): The camera intrinsics.
+
+        Returns
+        -------
+        Iterable[tuple[int, str, dict[str, pd.DataFrame]]]:
+            An iterable of tuples, where each tuple contains:
+                - timestamp (int): The timestamp of the frame.
+                - camera_id (str): The identifier of the camera.
+                - detected_hands (dict[str, pd.DataFrame]): A dictionary containing detected hand landmarks.
+        """
         # process each frame and save those ones that have detected hands
         detected_results = list()
-        for timestamp, camera_id, color_frame, depth_frame, intrinsics in frames:
+        for timestamp, camera_id, color_frame, depth_frame, _ in frames:
             # process image and get information
             mp_results = self.process_image(self, image=color_frame)
 
-            # draw_landmarks_holistics(color_frame, mp_results.left_hand_landmarks)
-            # draw_landmarks_holistics(color_frame, mp_results.right_hand_landmarks)
-
-            detected_hands = extract_landmarks(mp_results=mp_results)
+            detected_hands = extract_landmarks(
+                mp_results=mp_results, depth_frame=depth_frame
+            )
 
             # check if it's empty then MediaPipe has not found hand on this frame
             if len(detected_hands) == 0:

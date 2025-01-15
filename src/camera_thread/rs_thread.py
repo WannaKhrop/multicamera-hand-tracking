@@ -43,7 +43,8 @@ class CameraThreadRS(Thread):
         A mark that testing mode is enabled.
     save_video: bool = False
         A mark that video of a camera must be saved.
-
+    camera_frames: list[CameraFrame]
+        List of captured frames only in case of logging.
     """
 
     close_event: Event
@@ -85,9 +86,7 @@ class CameraThreadRS(Thread):
         )  # in case of testing always save video
 
     def run(self):
-        """
-        Run the thread. Take pictures and save the results.
-        """
+        """Run the thread. Take pictures and save the results."""
         # define landmarker
         holistic_landmarker = HolisticLandmarker()
 
@@ -187,7 +186,7 @@ class CameraThreadRS(Thread):
 
         Returns
         -------
-        list[tuple[str, int]]:
+        list[tuple[str, str]]:
             List with identificators of available cameras (name, ID).
         """
         arr = []

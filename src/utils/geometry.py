@@ -18,7 +18,7 @@ from hand_recognition.HandLandmarks import (
 )
 
 
-def draw_palm_polygon(polygon: list[np.array], point: np.array):
+def draw_palm_polygon(polygon: list[np.ndarray], point: np.ndarray):
     """
     Draw palm polygon and point of projection.
 
@@ -26,9 +26,9 @@ def draw_palm_polygon(polygon: list[np.array], point: np.array):
 
     Parameters
     ----------
-    polygon: list[np.array]
+    polygon: list[np.ndarray]
         Polygon with points.
-    point: np.array
+    point: np.ndarray
         Point to draw.
     """
     # Create a 3D plot
@@ -79,11 +79,11 @@ def project_point_to_line(
     Parameters
     ----------
     point1: np.ndarray
-        First point of the line
+        First point of the line.
     point2: np.ndarray
-        Second point of the line
+        Second point of the line.
     target: np.ndarray
-        Point that must be projected
+        Point that must be projected.
 
     Returns:
     np.ndarray:
@@ -109,12 +109,12 @@ def find_palm_plane(df_palm_landmarks: pd.DataFrame) -> np.ndarray:
     Parameters
     ----------
     df_palm_landmarks: pd.DataFrame
-        Landmarks of mediapipe that define palm points = [0, 5, 9, 13, 17]
+        Landmarks of mediapipe that define palm points = [0, 5, 9, 13, 17].
 
     Returns
     -------
     np.ndarray:
-        A, B, C, D coefficients of a plne as numpy array
+        A, B, C, D coefficients of a palne as np.ndarray.
     """
     # get poits of interest
     index_finger_point = np.array(
@@ -142,14 +142,14 @@ def project_point_to_plane(plane: np.ndarray, points: np.ndarray) -> np.ndarray:
     Parameters
     ----------
     plane: np.ndarray
-        Plane as array [A, B, C, D]
+        Plane as np.ndarray [A, B, C, D].
     points: np.ndarray
-        Points to be projected as [Nx3]
+        Points to be projected as [Nx3].
 
     Returns
     -------
     np.ndarray:
-        Projection point
+        Projection point.
     """
     # get points and normal vector
     points_ext = np.hstack([points, np.ones(shape=(points.shape[0], 1))])
@@ -162,7 +162,6 @@ def project_point_to_plane(plane: np.ndarray, points: np.ndarray) -> np.ndarray:
     return points - distances * normal_vector_normalized
 
 
-@TimeChecker
 def is_inside_palm(
     polygon: np.ndarray, plane: np.ndarray, points: np.ndarray
 ) -> np.ndarray:
@@ -223,8 +222,8 @@ def is_inside_palm(
 
 
 def construct_palm_polygon(
-    df_palm_landmarks: pd.DataFrame, plane: np.array
-) -> list[np.array]:
+    df_palm_landmarks: pd.DataFrame, plane: np.ndarray
+) -> list[np.ndarray]:
     """
     Construct a polygon for the landmarks of a palm.
 
@@ -232,12 +231,12 @@ def construct_palm_polygon(
     ----------
     df_palm_landmarks: pd.DataFrame
         Landmarks of mediapipe that define palm points = [0, 5, 9, 13, 17].
-    plane: np.array
+    plane: np.ndarray
         Plane [A, B, C, D] that defines plane of a palm.
 
     Returns
     -------
-    list[np.array]
+    list[np.ndarray]
         Polygon of points that defines palm like:
         INDEX=>MIDDLE=>RING=>PINKY=>PALM_BOTTOM_RIGHT=>WRIST=>PALM_BOTTOM_LEFT=>INDEX.
         All points belong to palm plane.
@@ -284,13 +283,19 @@ def construct_palm_polygon(
 @TimeChecker
 def assign_visibility(df_landmarks: pd.DataFrame):
     """
-    Assign visability level to each finger landmark.
-    This function adds an additional column "visibility" to the DataFrame
+    Assign visibility level to each finger landmark in a hand-tracking DataFrame.
+    This function adds an additional column "visibility" to the DataFrame, indicating
+    the visibility of each landmark based on its occlusion by other parts of the hand.
 
     Parameters
     ----------
-    df_landmarks: pd.DataFrame
-        Landmarks in DataFrame format with columns: index, x, y, z
+    df_landmarks : pd.DataFrame
+        DataFrame containing hand landmarks with columns: index, x, y, z.
+
+    Returns
+    -------
+    None
+        The function modifies the input DataFrame in place by adding a "visibility" column.
     """
     # Camera vector
     camera_vector = np.array([0.0, 0.0, -1.0]).reshape(-1, 1)
@@ -411,41 +416,6 @@ def assign_visibility(df_landmarks: pd.DataFrame):
 
     # Store results
     df_landmarks["visibility"] = visibility
-
-
-def is_between(point1, point2, target):
-    """
-    Check if target point is located between point1 and point2.
-
-    Parameters
-    ----------
-    point1: np.ndarray
-        First point of the line
-    point2: np.ndarray
-        Second point of the line
-    target: np.ndarray
-        Point that must be projected
-
-    Returns:
-    bool:
-        Returns True is target is located between two points
-        Otherwise, returns False
-    """
-    # Check for each dimension if the points are between the two landmarks
-    cond1 = np.logical_and(point1[0, 0] <= target[0], target[0] <= point2[0, 0])
-    cond2 = np.logical_and(point1[1, 0] <= target[1], target[1] <= point2[1, 0])
-    cond3 = np.logical_and(point1[2, 0] <= target[2], target[2] <= point2[2, 0])
-
-    cond1_rev = np.logical_and(point2[0, 0] <= target[0], target[0] <= point1[0, 0])
-    cond2_rev = np.logical_and(point2[1, 0] <= target[1], target[1] <= point1[1, 0])
-    cond3_rev = np.logical_and(point2[2, 0] <= target[2], target[2] <= point1[2, 0])
-
-    result = np.logical_or(
-        np.logical_and(cond1, np.logical_and(cond2, cond3)),
-        np.logical_and(cond1_rev, np.logical_and(cond2_rev, cond3_rev)),
-    )
-
-    return result
 
 
 def landmarks_fusion(
