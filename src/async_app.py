@@ -32,11 +32,8 @@ camera_barrier = Barrier(parties=len(available_cameras))  # just all cameras
 data_barrier = Barrier(
     parties=(len(available_cameras) + 1)
 )  # all cameras + one processing thread !!!
-read_finished = Barrier(
-    parties=(len(available_cameras) + 1)
-)  # all cameras + one processing thread !!!
 SAVE_LOGS = False
-WRITE_VIDEO = False
+WRITE_VIDEO = True
 
 # Camera threads initialization
 threads = {
@@ -94,12 +91,12 @@ custom_layout = go.Layout(
         xaxis_title="X Axis",
         yaxis_title="Y Axis",
         zaxis_title="Z Axis",
-        xaxis=dict(range=(-1.0, 1.0), autorange=False),  # Set the x-axis limit
+        xaxis=dict(range=(0.0, 1.0), autorange=False),  # Set the x-axis limit
         yaxis=dict(range=(-1.0, 1.0), autorange=False),  # Set the y-axis limit
-        zaxis=dict(range=(0.0, 1.0), autorange=False),  # Set the z-axis limit
-        camera=dict(eye=dict(x=1.0, y=1.0, z=1.0)),
+        zaxis=dict(range=(0.0, 1.5), autorange=False),  # Set the z-axis limit
+        camera=dict(eye=dict(x=1.0, y=1.0, z=1.5)),
         aspectmode="manual",  # Fixes the aspect ratio
-        aspectratio=dict(x=1.0, y=1.0, z=1.0),  # Ensures aspect ratio remains constant
+        aspectratio=dict(x=2.0, y=2.0, z=1.0),  # Ensures aspect ratio remains constant
     ),
     margin=dict(l=0, r=0, t=0, b=0),  # Tight margins for better visualization
 )
