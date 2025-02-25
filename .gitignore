@@ -19,3 +19,5 @@ model
 *.pdf
 *.gif
 *.avi
+
+logs/*
