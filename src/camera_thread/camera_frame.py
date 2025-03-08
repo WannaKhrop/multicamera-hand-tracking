@@ -105,7 +105,7 @@ class CameraFrame:
         return (
             self.timestamp,
             self.camera_id,
-            self.landmarks,
+            {key: self.landmarks[key].copy() for key in self.landmarks},
             self.intrinsics,
         )
 

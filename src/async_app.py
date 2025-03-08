@@ -32,7 +32,7 @@ camera_barrier = Barrier(parties=len(available_cameras))  # just all cameras
 data_barrier = Barrier(
     parties=(len(available_cameras) + 1)
 )  # all cameras + one processing thread !!!
-SAVE_LOGS = False
+SAVE_LOGS = True
 WRITE_VIDEO = True
 
 # Camera threads initialization
@@ -182,5 +182,16 @@ if __name__ == "__main__":
     sleep(2.0)
     print("\nStart Application\n")
 
+    # sleep before starting threads
+    sleep(3.0)
+    for camera_id in threads:
+        threads[camera_id].start()
+    fusion_thread.start()
+
+    # run threads for 10 sec. and then stop them
+    sleep(10.0)
+    close_threads.set()
+    fusion_thread.join()
+
     # run application
-    app.run_server(debug=False, use_reloader=False)
+    # app.run_server(debug=False, use_reloader=False)
