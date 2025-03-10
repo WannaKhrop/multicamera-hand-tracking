@@ -10,6 +10,8 @@ from glob import glob
 import numpy as np
 import pandas as pd
 from pathlib import Path
+import plotly.graph_objs as go
+from mediapipe import solutions
 
 # specific imports
 from camera_thread.camera_frame import CameraFrame
@@ -353,6 +355,120 @@ def calculate_mse(
 
     # return only interesting values
     return retrieve_stats(df)
+
+
+# visualize results
+def visualize_hand(landmarks: pd.DataFrame):
+    """
+    Visualize hand landmarks.
+
+    Parameters
+    ----------
+    landmarks: pd.DataFrame
+        DataFrame containing landmarks.
+    """
+    # define layout for plotly
+    custom_layout = go.Layout(
+        autosize=False,
+        width=800,
+        height=600,
+        showlegend=False,
+        scene=dict(
+            xaxis_title="X Axis",
+            yaxis_title="Y Axis",
+            zaxis_title="Z Axis",
+            xaxis=dict(range=(0.0, 1.0), autorange=False),  # Set the x-axis limit
+            yaxis=dict(range=(-1.0, 1.0), autorange=False),  # Set the y-axis limit
+            zaxis=dict(range=(0.0, 1.5), autorange=False),  # Set the z-axis limit
+            camera=dict(eye=dict(x=1.0, y=1.0, z=2.0)),
+            aspectmode="manual",  # Fixes the aspect ratio
+            aspectratio=dict(
+                x=2.0, y=2.0, z=1.0
+            ),  # Ensures aspect ratio remains constant
+        ),
+        margin=dict(l=0, r=0, t=0, b=0),  # Tight margins for better visualization
+    )
+
+    # create figure
+    fig = go.Figure(layout=custom_layout)
+
+    # add scatter plot
+    scatter_data = go.Scatter3d(
+        x=landmarks.loc[:].x.values,
+        y=landmarks.loc[:].y.values,
+        z=landmarks.loc[:].z.values,
+        mode="markers+text",
+        text=[str(idx) for idx in landmarks.index],
+        marker=dict(size=3, color="black"),
+        textfont=dict(size=6, color="blue"),
+    )
+    fig.add_trace(scatter_data)
+
+    # add lines
+    connections_x, connections_y, connections_z = [], [], []
+    for start_idx, end_idx in solutions.hands.HAND_CONNECTIONS:
+        connections_x += [
+            landmarks.loc[start_idx].x,
+            landmarks.loc[end_idx].x,
+            None,
+        ]
+        connections_y += [
+            landmarks.loc[start_idx].y,
+            landmarks.loc[end_idx].y,
+            None,
+        ]
+        connections_z += [
+            landmarks.loc[start_idx].z,
+            landmarks.loc[end_idx].z,
+            None,
+        ]
+
+    fig.add_trace(
+        go.Scatter3d(
+            x=connections_x,
+            y=connections_y,
+            z=connections_z,
+            mode="lines",
+            line=dict(color="black", width=2),
+        )
+    )
+
+    fig.write_image("gesture.svg")
+    fig.show()
+
+
+# get landmarks as average for a static gesture
+def get_static_gesture(
+    frames: list[CameraFrame], hand_id: str = "Right"
+) -> pd.DataFrame:
+    """
+    Get average landmarks for a static gesture.
+
+    Parameters
+    ----------
+        merged_frames: list[CameraFrame]
+            A list of CameraFrame objects containing the predicted values from multiple cameras.
+        hand_id: str = "Right"
+            Which hand must be evaluated.
+
+    Returns
+    -------
+        pd.DataFrame
+            A DataFrame containing average landmarks.
+    """
+    all_landmarks = list()
+    for frame in frames:
+        hand_values = frame.landmarks[hand_id]
+        all_landmarks.append(hand_values[["x", "y", "z"]].values)
+
+    # create matrix and get average
+    landmarks_arr = np.array(all_landmarks)
+    landmarks_arr = np.mean(landmarks_arr, axis=0)
+
+    # calculate landmarks
+    landmarks = pd.DataFrame(landmarks_arr, columns=["x", "y", "z"])
+
+    return landmarks
 
 
 # read all logs as one list
