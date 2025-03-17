@@ -24,7 +24,7 @@ from utils.coordinate_transformer import CoordinateTransformer
 
 # get all logs
 PATH_TO_DATA = Path(
-    "C:\\Users\khrop\\Desktop\\Test Results\\Gesture 5 Both Cameras\\Palm Gesture\\Both Cameras\\Test#3"
+    "C:\\Users\\khrop\\Desktop\\Test Results\\Fork\\Table Camera\\Test#5"
 )  # puth path to data here
 files = set(glob(str(PATH_TO_DATA.joinpath("logs", "*.jsonl"))))
 fusion_log_file = str(
@@ -358,7 +358,7 @@ def calculate_mse(
 
 
 # visualize results
-def visualize_hand(landmarks: pd.DataFrame):
+def visualize_hand(landmarks: pd.DataFrame, true_landmarks: pd.DataFrame):
     """
     Visualize hand landmarks.
 
@@ -366,7 +366,54 @@ def visualize_hand(landmarks: pd.DataFrame):
     ----------
     landmarks: pd.DataFrame
         DataFrame containing landmarks.
+    true_landmarks: pd.DataFrame
+        Ground Truth Landmarks Positions.
     """
+
+    # function for better visualization
+    def create_scatter_plot(
+        data: pd.DataFrame, color: str
+    ) -> tuple[go.Scatter3d, go.Scatter3d]:
+        # add scatter plot
+        scatter_data = go.Scatter3d(
+            x=data.loc[:].x.values,
+            y=data.loc[:].y.values,
+            z=data.loc[:].z.values,
+            mode="markers+text",
+            text=[str(idx) for idx in data.index],
+            marker=dict(size=3, color=color),
+            textfont=dict(size=6, color="blue"),
+        )
+
+        # add lines
+        connections_x, connections_y, connections_z = [], [], []
+        for start_idx, end_idx in solutions.hands.HAND_CONNECTIONS:
+            connections_x += [
+                data.loc[start_idx].x,
+                data.loc[end_idx].x,
+                None,
+            ]
+            connections_y += [
+                data.loc[start_idx].y,
+                data.loc[end_idx].y,
+                None,
+            ]
+            connections_z += [
+                data.loc[start_idx].z,
+                data.loc[end_idx].z,
+                None,
+            ]
+
+        scatter_connections = go.Scatter3d(
+            x=connections_x,
+            y=connections_y,
+            z=connections_z,
+            mode="lines",
+            line=dict(color=color, width=2),
+        )
+
+        return scatter_data, scatter_connections
+
     # define layout for plotly
     custom_layout = go.Layout(
         autosize=False,
@@ -392,48 +439,21 @@ def visualize_hand(landmarks: pd.DataFrame):
     # create figure
     fig = go.Figure(layout=custom_layout)
 
-    # add scatter plot
-    scatter_data = go.Scatter3d(
-        x=landmarks.loc[:].x.values,
-        y=landmarks.loc[:].y.values,
-        z=landmarks.loc[:].z.values,
-        mode="markers+text",
-        text=[str(idx) for idx in landmarks.index],
-        marker=dict(size=3, color="black"),
-        textfont=dict(size=6, color="blue"),
+    # plot predicted data
+    scatter_data_pred, scatter_conn_pred = create_scatter_plot(
+        data=landmarks, color="black"
     )
-    fig.add_trace(scatter_data)
+    fig.add_trace(scatter_data_pred)
+    fig.add_trace(scatter_conn_pred)
 
-    # add lines
-    connections_x, connections_y, connections_z = [], [], []
-    for start_idx, end_idx in solutions.hands.HAND_CONNECTIONS:
-        connections_x += [
-            landmarks.loc[start_idx].x,
-            landmarks.loc[end_idx].x,
-            None,
-        ]
-        connections_y += [
-            landmarks.loc[start_idx].y,
-            landmarks.loc[end_idx].y,
-            None,
-        ]
-        connections_z += [
-            landmarks.loc[start_idx].z,
-            landmarks.loc[end_idx].z,
-            None,
-        ]
-
-    fig.add_trace(
-        go.Scatter3d(
-            x=connections_x,
-            y=connections_y,
-            z=connections_z,
-            mode="lines",
-            line=dict(color="black", width=2),
-        )
+    # plot real gesture
+    scatter_data_real, scatter_conn_real = create_scatter_plot(
+        data=true_landmarks, color="red"
     )
+    fig.add_trace(scatter_data_real)
+    fig.add_trace(scatter_conn_real)
 
-    fig.write_image("gesture.svg")
+    # fig.write_image("gesture.svg")
     fig.show()
 
 
@@ -552,3 +572,9 @@ for camera_id in cameras:
 
     # close reporting
     print(60 * "=")
+
+# extract a static gesture from merged frames
+gesture_landmarks = get_static_gesture(frames=simulation_results, hand_id="Right")
+
+# plot this gesture
+visualize_hand(gesture_landmarks, real_values)
