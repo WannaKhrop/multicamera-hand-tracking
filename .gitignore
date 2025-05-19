@@ -1,13 +1,7 @@
-# mediapipe models
-models/hand_landmarker.task
-models/pose_landmarker_lite.task
-
 # useless files
 .*cache
+*cache*
 .vscode
-
-# model folder with logs of KAN training
-model
 
 # compiled python and json files
 *.pyc
@@ -17,7 +11,6 @@ model
 *.png
 *.jpeg
 *.pdf
-*.gif
 *.avi
 
-logs/*
+videos/*
